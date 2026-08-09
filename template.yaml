@@ -1,0 +1,7 @@
+# TODO: AWS SAM template — defines all infrastructure
+# Resources to define:
+#   - ConditionsTable (DynamoDB) — caches latest conditions per resort
+#   - IngestFunction (Lambda) — triggered by EventBridge schedule, writes to DynamoDB
+#   - ApiFunction (Lambda) — triggered by API Gateway, reads from DynamoDB
+#   - HttpApi (API Gateway) — routes GET /conditions and POST /recommend to ApiFunction
+#   - EventBridge schedule — triggers IngestFunction every few hours

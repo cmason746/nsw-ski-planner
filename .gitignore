@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Node
+node_modules/
+dist/
+
+# SAM build artifacts
+.aws-sam/
+
+# macOS
+.DS_Store
