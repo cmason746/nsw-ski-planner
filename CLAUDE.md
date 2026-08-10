@@ -57,8 +57,10 @@ engine here once it exists._
 
 ## TODO (running list — update each session)
 
-- [ ] Draw function connection diagrams for each backend file
+- [ ] Naming cleanup in `scorer.py`: `resort` (static config from `RESORTS`) vs `resort_data` (cached conditions) is confusing — rename `resort` to `resort_static`
+- [x] Draw function connection diagrams for each backend file — see [BACKEND_DESIGN.md](BACKEND_DESIGN.md)
 - [ ] Design `api/handler.py` (function signatures, variable names) before writing
+- [ ] Implement `format_overview()` in `api/overview.py` — raw cached values → human-readable overview text (frontend picks icons)
 - [ ] Implement `extract_windows()` in `open_meteo.py`
 - [ ] Implement OnTheSnow scraper (`onthesnow.py`) — inspect page HTML first
 - [ ] Write `template.yaml` (SAM — all AWS infrastructure)
