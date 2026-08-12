@@ -1,1 +1,10 @@
-# TODO: SAM deploy configuration (stack name, region, S3 bucket for deployment artifacts)
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "nsw-ski-planner"
+region = "ap-southeast-2"
+profile = "ski-planner"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+parameter_overrides = "BedrockModelId=au.anthropic.claude-haiku-4-5-20251001-v1:0"
