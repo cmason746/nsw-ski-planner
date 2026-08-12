@@ -57,12 +57,14 @@ engine here once it exists._
 
 ## TODO (running list — update each session)
 
-- [ ] Naming cleanup in `scorer.py`: `resort` (static config from `RESORTS`) vs `resort_data` (cached conditions) is confusing — rename `resort` to `resort_static`
+- [x] Naming cleanup in `scorer.py`: renamed `resort` → `resort_static` (vs `resort_data` for cached conditions)
 - [x] Draw function connection diagrams for each backend file — see [BACKEND_DESIGN.md](BACKEND_DESIGN.md)
-- [ ] Design `api/handler.py` (function signatures, variable names) before writing
-- [ ] Implement `format_overview()` in `api/overview.py` — raw cached values → human-readable overview text (frontend picks icons)
-- [ ] Implement `extract_windows()` in `open_meteo.py`
-- [ ] Implement OnTheSnow scraper (`onthesnow.py`) — inspect page HTML first
+- [x] Write `api/handler.py` — routing (GET /conditions, POST /recommend) + `_load_conditions()`; finalise function signatures / variable names first
+- [x] Recommendation ranking → **best resort per day** (one card per day, top 3 days), replacing top-3 (resort,day) combos. `scorer.py` now builds an 8-factor "why" package (top-4 by weight + top-4 by score, static factors eligible) + a 2-factor runner-up contrast (prefers band-differing factors), all described with the overview band words.
+- [x] Step 2 — `api/explain.py` `generate_why()`: one Bedrock call (Claude Haiku 4.5, `anthropic.claude-haiku-4-5` via `AnthropicBedrockMantle`) rephrases each card's facts into a small paragraph, strictly guardrailed; templated fallback; wired into `POST /recommend`. **Live Bedrock call still untested — needs model access + region at deploy.**
+- [x] Implement `format_overview()` in `api/overview.py` — raw cached values → band words + raw numbers (frontend picks icons + lays out as aligned dot points). Precip gate/rain-snow split moved to `shared/factors.py` (`is_precipitating`, `precip_type`) so overview and scorer classify identically.
+- [x] Implement `extract_windows()` in `open_meteo.py`
+- [x] Implement OnTheSnow scraper (`onthesnow.py`) — parses the `__NEXT_DATA__` JSON blob (Next.js), not the rendered HTML; no bs4 needed
 - [ ] Write `template.yaml` (SAM — all AWS infrastructure)
 - [ ] Write `samconfig.toml`
 - [ ] Deploy SAM skeleton to AWS early (before frontend)

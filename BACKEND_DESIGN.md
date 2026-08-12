@@ -79,13 +79,13 @@ flowchart TD
 
         subgraph ing_ots["ingest/onthesnow.py"]
             ots_all["fetch_all_snapshots()<br/>returns a live lift/base snapshot for all three resorts, keyed by resort"]:::built
-            ots_one["fetch_resort_snapshot(resort_key)<br/>fetches one resort's OnTheSnow ski-report page and parses lifts_open, lifts_total, base_depth_cm"]:::todo
+            ots_one["fetch_resort_snapshot(resort_key)<br/>fetches one resort's OnTheSnow ski-report page and parses lifts_open, lifts_total, base_depth_cm"]:::built
         end
 
         subgraph ing_meteo["ingest/open_meteo.py"]
             meteo_fetch["fetch_resort_forecast(lat, lon, elevation_high, elevation_mid)<br/>fetches one resort's hourly forecast via two elevation-specific calls and merges them"]:::built
             meteo_low["_fetch(lat, lon, elevation, variables, past_days)<br/>performs a single Open-Meteo HTTP GET and returns the raw JSON"]:::built
-            meteo_windows["extract_windows(hourly)<br/>slices raw hourly data into per-day AM/PM windows with aggregated factor values"]:::todo
+            meteo_windows["extract_windows(hourly)<br/>slices raw hourly data into per-day AM/PM windows with aggregated factor values"]:::built
         end
 
         subgraph ing_shared["shared/resorts.py"]
@@ -114,11 +114,17 @@ flowchart TD
     classDef store fill:#f3e8ff,stroke:#7048e8,color:#000;
 ```
 
-**Note on the two stubs.** `extract_windows` is on the critical path — its output
-shape is exactly what `scorer.score_window` reads back out of DynamoDB, so it
-defines the DynamoDB item schema. `fetch_resort_snapshot` does the HTTP fetch
-today but raises `NotImplementedError` on the parse until the page HTML is
-confirmed.
+**Note on `extract_windows`.** It's on the critical path — its output shape is
+exactly what `scorer.score_window` reads back out of DynamoDB, so it defines the
+DynamoDB item schema.
+
+**Note on `fetch_resort_snapshot`.** OnTheSnow is a Next.js app: every ski-report
+page server-renders with all its data in one `<script id="__NEXT_DATA__">` JSON
+blob. We parse `props.pageProps.fullResort` out of that blob (lift counts +
+per-band depths in cm) rather than scraping rendered divs — it's the resort's own
+structured data, so no unit conversion and far less fragile than div-scraping.
+Base depth is reported per elevation band; we take the first present in base →
+middle → summit order.
 
 ---
 
@@ -135,26 +141,30 @@ flowchart TD
 
     subgraph API["API Lambda"]
         subgraph api_handler["api/handler.py"]
-            api_main["lambda_handler(event, context)<br/>entry point; routes GET /conditions and POST /recommend"]:::todo
-            api_load["_load_conditions()<br/>reads all resort items from DynamoDB into the conditions dict (shared by both routes)"]:::todo
+            api_main["lambda_handler(event, context)<br/>entry point; routes GET /conditions and POST /recommend"]:::built
+            api_load["_load_conditions()<br/>reads all resort items from DynamoDB into the conditions dict (shared by both routes)"]:::built
         end
 
         subgraph api_overview["api/overview.py"]
-            overview["format_overview(conditions)<br/>turns the raw cached values into the human-readable overview (band labels and words); the frontend picks the icons"]:::todo
+            overview["format_overview(conditions)<br/>turns the raw cached values into the human-readable overview (band labels and words); the frontend picks the icons"]:::built
         end
 
         subgraph api_scorer["api/scorer.py"]
-            rank["rank(conditions, preferences)<br/>builds candidates, filters to selected dates, gates, scores each (resort, day), returns the top 3"]:::built
+            rank["rank(conditions, preferences)<br/>scores every (resort, day), keeps the best resort per day, ranks days, returns up to 3 cards — each with an 8-factor why + runner-up contrast"]:::built
             gates["apply_gates(candidates, conditions, preferences)<br/>drops ineligible candidates — Selwyn for intermediate/advanced, and any resort with 0% lifts open"]:::built
-            window["score_window(window_factors, resort_key, resort_static, day_factors, ability, weights)<br/>weighted average of the active factors for one AM or PM window; N/A factors drop out"]:::built
+            window["_weather_scores · _resort_scores · _window_score · _combined_scores<br/>per-factor 0–1 scores per window (N/A drop out); weighted-average one window; mean across windows for selection"]:::built
             day["score_day(am, pm)<br/>combines the two windows into one day score: two-thirds the better window plus one-third the worse"]:::built
-            isprecip["_is_precipitating(precip_mm, precip_prob)<br/>true if precip is likely and meaningful — the gate for the whole snow story"]:::built
-            ptype["_precip_type(freezing_level_m, elev_low, elev_high)<br/>classifies precipitation as snow, mix, or rain from freezing level vs resort elevations"]:::built
-            topf["top_factors(active_scores, weights, preferences, n)<br/>ranks factors by contribution (weight times score) for the explanation text"]:::todo
+            topf["select_factors · _describe_factor · _build_contrast<br/>picks 8 factors (top-4 weight + top-4 score), describes them in the overview band words, builds the 2-factor runner-up contrast"]:::built
+        end
+
+        subgraph api_explain["api/explain.py"]
+            explain["generate_why(cards, preferences)<br/>Bedrock (Claude Haiku 4.5) rephrases each card's fact package into prose, guardrailed to the facts; templated fallback if unavailable"]:::built
         end
 
         subgraph api_factors["shared/factors.py"]
             weights["build_weights(preferences)<br/>turns user preferences into a factor→weight dict (opt-ins plus snowy / bluebird boosts)"]:::built
+            isprecip["is_precipitating(precip_mm, precip_prob)<br/>true if precip is likely and meaningful — the gate for the whole snow story"]:::built
+            ptype["precip_type(freezing_level_m, elev_low, elev_high)<br/>classifies precipitation as snow, mix, or rain from freezing level vs resort elevations"]:::built
             subgraph FACTORS["scoring functions — each maps a reading to 0–1"]
                 f_rain["score_rain_penalty(...)<br/>1 all-snow, 0.3 mix, 0 all-rain"]:::built
                 f_wind["score_wind(...)<br/>1 at 15 km/h or less, down to 0 at 60 km/h or more"]:::built
@@ -168,29 +178,39 @@ flowchart TD
         end
 
         subgraph api_resorts["shared/resorts.py"]
-            rscores["ABILITY_SCORES · SIZE_SCORES · LENGTH_SCORES · PRICE_SCORES<br/>static 0–1 lookup tables for the user-dependent factors"]:::built
+            rscores["ABILITY_SCORES · SIZE_SCORES · LENGTH_SCORES · PRICE_SCORES (0–1 scores)<br/>SIZE_LABELS · LENGTH_LABELS · TERRAIN_LABELS (overview character words)<br/>static per-resort lookup tables"]:::built
         end
     end
 
     DDB[("DynamoDB — ConditionsTable")]:::store
+    BEDROCK["Amazon Bedrock<br/>Claude Haiku 4.5 — rephrases facts into prose"]:::ext
 
     AGW -->|"invokes on each request"| api_main
     api_main -->|"GET — load the cache"| api_load
     api_main -->|"GET — then format for display"| overview
     api_main -->|"POST — load the cache"| api_load
     api_main -->|"POST — then score with prefs"| rank
+    api_main -->|"POST — then generate the why prose"| explain
     api_load -->|"read all resort items"| DDB
 
     rank -->|"prefs → factor weights"| weights
     rank -->|"drop ineligible (resort, day) combos"| gates
     rank -->|"score each half-day (AM and PM)"| window
     rank -->|"combine the two windows"| day
-    rank -.->|"planned — build the explanation"| topf
+    rank -->|"select + describe factors, build contrast"| topf
 
     window -->|"is precip likely and meaningful?"| isprecip
     window -->|"if precipitating, classify the type"| ptype
     window -->|"score each active factor"| FACTORS
     window -->|"look up user-dependent scores"| rscores
+    topf -->|"describe factors in band words"| overview
+    topf -->|"static character labels"| rscores
+
+    explain -->|"grounded rephrasing (strict prompt)"| BEDROCK
+
+    overview -->|"same precip gate as the scorer"| isprecip
+    overview -->|"same rain/snow split as the scorer"| ptype
+    overview -->|"look up static character labels"| rscores
 
     classDef built fill:#d3f9d8,stroke:#2b8a3e,color:#000;
     classDef todo fill:#fff3bf,stroke:#e67700,color:#000,stroke-dasharray: 5 3;
@@ -200,8 +220,31 @@ flowchart TD
 **Notes.**
 - The two routes share `_load_conditions` (raw numbers) but diverge afterwards:
   `GET /conditions` → `format_overview` (raw → human-readable text); `POST
-  /recommend` → `rank` (raw → scored ranking). `format_overview` returns the band
-  words; the frontend maps each band to its icon.
+  /recommend` → `rank` (raw → scored ranking). `format_overview` returns each
+  factor's band word **plus its raw number**, so the frontend can show the word,
+  the figure, or both, and maps each band to its icon (laid out as aligned dot
+  points). N/A factors are omitted from a window, mirroring how they drop out of
+  the scoring model.
+- `is_precipitating` and `precip_type` live in `shared/factors.py` and are called
+  by **both** the scorer's per-window scoring and `format_overview` — one definition
+  of the precip gate and the snow/mix/rain split, so the overview and the
+  recommendation can never disagree about whether it's snowing.
+- **`rank` returns cards, not raw scores.** One card per day (best resort that day,
+  top 3 days). Each card carries an **8-factor why** — `select_factors` takes the
+  top 4 by weight + top 4 by score (static resort factors eligible as fillers),
+  and `_describe_factor` reuses `overview.py`'s band-word helpers so the why speaks
+  the same vocabulary as the overview (weather factors carry both AM and PM). The
+  **contrast** (`_build_contrast`) compares the runner-up resort on 2 factors,
+  preferring ones whose band word actually differs so it reads as a real difference.
+- **`generate_why` (built).** `POST /recommend` passes `rank`'s cards to
+  `explain.generate_why`, which sends all cards' fact packages in **one** Bedrock
+  call to **Claude Haiku 4.5**, strictly prompted to use only the supplied facts
+  (the deterministic facts are the anti-hallucination guardrail), and attaches a
+  `why` paragraph per card. The SDK import and client are lazy so the module loads
+  without the dep; any failure (missing SDK/creds, unparseable response) logs and
+  falls back to a templated join of the same facts, so the route never fails. The
+  live Bedrock call still needs validating against a real endpoint at deploy
+  (model access enabled + region), which local tests can't exercise.
 - `build_weights` starts from `BASE_WEIGHTS` (also in `shared/factors.py`) and
   bumps individual weights per the preference answers.
 - `top_factors` is written but its mapping from factor names to plain-English

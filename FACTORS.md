@@ -25,7 +25,7 @@ figures live in [RESORT_DATA.md](RESORT_DATA.md).
 ## Conventions
 
 - **Time windows.** Every forecast factor is summarised per day into two windows
-  matching lift hours: **morning 08:30–12:30**, **afternoon 12:30–16:30**.
+  matching lift hours: **morning 09:00–13:00** (hours 9, 10, 11, 12), **afternoon 13:00–17:00** (hours 13, 14, 15, 16).
   (Open-Meteo is hourly on-the-hour, so boundaries map to whole-hour buckets in
   code — exact rounding settled at build time.)
 - **Aggregation within a window** depends on the reading: **amounts** (precip,
@@ -138,8 +138,8 @@ bluebird day being punished on an axis that doesn't apply.
 - **Why:** fresh snow already on the ground — freshness/cover. Distinct from snow
   *on* the day and from total base depth.
 - **Data:** Open-Meteo `snowfall` at the **highest lifted point**, **summed** from
-  **00:00 two days before** the selected date up to **lift-open (08:30)** on the
-  day — full hours, includes overnight. (Uses `past_days` + forecast in one call.)
+  **00:00 two days before** the selected date up to **08:00** on the
+  day — full hours up to (but not including) the AM window, includes overnight. (Uses `past_days` + forecast in one call.)
 - **Score:** `min(cm / 40, 1)` — 0 cm → 0, ≥ 40 cm → 1, linear.
 - **Weight:** 7 baseline → **10** if the user picks "snowy".
 

@@ -21,8 +21,9 @@ is a decision-support tool, not a weather dashboard.
 2. **Overview** — a neutral, preference-independent per-resort / per-day view of
    conditions. Ordered: **weather → lifts → resort character → cost.**
 3. **Pick preferences** — ability + the few things that matter most to them.
-4. **Recommendation** — ranked top 3 (resort, day) combos as **expandable cards**:
-   a collapsed summary (rank, resort, day, headline), expandable to the full "why."
+4. **Recommendation** — the **best resort for each of the top days** (one card per
+   day, ranked best-day-first, capped at 3) as **expandable cards**: a collapsed
+   summary (rank, resort, day, headline), expandable to the full "why."
 
 Layout is a single scrolling page: the **forecast/overview at the top**, then
 preferences and the **top-3 result cards** below.
@@ -103,10 +104,15 @@ capped at 10 days out.
 - **IaC: AWS SAM** — purpose-built for this serverless shape; fastest path for a
   short build. (Would pick Terraform for multi-cloud / mixed-infra.)
 - **Data store: DynamoDB** — simple key-value cache of latest conditions.
-- **Explanation text: template-based generation, no LLM** — the "why" is
-  assembled from the plain-language factor bands, guaranteeing it's **faithful**
-  to the computed scores (no hallucination), free and deterministic. (If phrasing
-  polish were ever wanted, Amazon Bedrock over OpenAI — but not planned.)
+- **Explanation text: grounded LLM generation via Amazon Bedrock (Claude Haiku
+  4.5)** — the deterministic scorer selects and describes the facts (8 factors +
+  contrast, in the overview's band words); Bedrock only **rephrases those exact
+  facts into flowing prose**, strictly prompted to add/change/invent nothing. This
+  keeps the "why" **faithful** to the computed scores (the guardrail is that every
+  fact is pre-computed) while reading naturally, and showcases another AWS service.
+  Haiku is right-sized: the task is constrained rephrasing, not reasoning. Falls
+  back to a templated join of the facts if Bedrock is unavailable, so `/recommend`
+  never fails. (Earlier plan was pure templates, no LLM — revised for readability.)
 
 ## Scoring model
 
@@ -187,9 +193,11 @@ Per (resort, day):
 3. Rank all (resort, day) day-scores; show the **top 3**.
 
 **Decisions:**
-- **#1 — Ranking unit (done):** score each **(resort, day)** combo; show the
-  **top 3** raw scores (repeats fine). Morning/afternoon is *displayed detail*,
-  not a ranking unit.
+- **#1 — Ranking unit (done):** score each **(resort, day)**, then for each day
+  keep the **best resort**, rank the days, and show the **top 3 days** — one card
+  per day (a 2-day range yields 2 cards). Chosen over "top 3 raw (resort, day)
+  scores" so cards never repeat a resort and each card is genuinely the best place
+  to ski that day. Morning/afternoon is *displayed detail*, not a ranking unit.
 - **#2 — Per-factor 0–1 scores (done):** all factors scored, including the
   user-dependent ones — ability (hand-set per level), size, run length, and price
   (normalised across the three resorts). See [FACTORS.md](FACTORS.md).
@@ -200,12 +208,17 @@ Per (resort, day):
   average (differentiate resorts, not days). See "Combining scores" above.
 - **#5 — Gates (done):** two hard vetoes — Selwyn for intermediate/advanced
   skiers, and any resort with 0% lifts open. Rain stays soft. See "Gates" above.
-- **#6 — Explanation (done):** each top-3 result is an **expandable card**
-  (collapsed summary → expand for the full "why"). The why = the **top
-  contributing factors** (biggest weight × score), prioritising the user's stated
-  preferences plus standout conditions, as **2–3** template-generated points.
-  **Contrast** ("chosen over X because…") is a **phase-2** addition, not in the
-  first build.
+- **#6 — Explanation:** each card is an **expandable card** (collapsed summary →
+  expand for the full "why"). The why is built from **8 selected factors** — the
+  **top 4 by weight** (what matters most / most to the user) plus the **top 4 by
+  score** (the most positive conditions), deduped and topped up to 8, with static
+  resort factors (size, run length, price) eligible as fillers — each described
+  with the **overview band words** (weather factors carry both AM and PM). Plus a
+  **2-factor contrast** against the runner-up resort that day, preferring factors
+  whose band word actually differs. Selection/description/contrast are all
+  deterministic (`scorer.py`); the prose itself is **LLM-generated** — see the
+  explanation-text note under *Tech stack & why*. **Contrast is in the first
+  build** (promoted from phase-2).
 
 **Conditional logic (snow cluster):** the snow factors are gated by nested checks
 (precipitating? → snowing?), and a factor that's N/A drops out of the weighting
