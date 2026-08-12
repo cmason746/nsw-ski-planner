@@ -35,14 +35,14 @@ request. This is the "split ingest from serving" decision in
 
 ```mermaid
 flowchart TD
-    FE["Frontend (React on S3 / CloudFront)<br/>renders the overview and the recommendation"]:::built
-    AGW["API Gateway (HTTP API)<br/>both routes point to the one API Lambda"]:::store
-    EB["EventBridge schedule<br/>fires every few hours"]:::store
-    API["API Lambda<br/>handles both routes: returns the overview, and scores the recommendation"]:::built
-    INGEST["Ingest Lambda<br/>fetches conditions, writes cache"]:::built
-    DDB[("DynamoDB — ConditionsTable<br/>one item per resort: forecast windows + live lift/base snapshot")]:::store
-    OM["Open-Meteo<br/>hourly weather forecast, no API key"]:::ext
-    OTS["OnTheSnow<br/>live lift status and base depth (scraped)"]:::ext
+    FE["Frontend (React on S3 / CloudFront) — renders the overview and the recommendation"]:::built
+    AGW["API Gateway (HTTP API) — both routes point to the one API Lambda"]:::store
+    EB["EventBridge schedule — fires every few hours"]:::store
+    API["API Lambda — handles both routes: returns the overview, and scores the recommendation"]:::built
+    INGEST["Ingest Lambda — fetches conditions, writes cache"]:::built
+    DDB[("DynamoDB — ConditionsTable — one item per resort: forecast windows + live lift/base snapshot")]:::store
+    OM["Open-Meteo — hourly weather forecast, no API key"]:::ext
+    OTS["OnTheSnow — live lift status and base depth (scraped)"]:::ext
 
     FE -->|"call 1 — GET /conditions (after picking dates)"| AGW
     FE -->|"call 2 — POST /recommend (after picking preferences)"| AGW
@@ -74,22 +74,22 @@ flowchart TD
 
     subgraph INGEST["Ingest Lambda"]
         subgraph ing_handler["ingest/handler.py"]
-            main["lambda_handler(event, context)<br/>entry point; orchestrates the full ingest and writes each resort to DynamoDB"]:::built
+            main["lambda_handler(event, context) — entry point; orchestrates the full ingest and writes each resort to DynamoDB"]:::built
         end
 
         subgraph ing_ots["ingest/onthesnow.py"]
-            ots_all["fetch_all_snapshots()<br/>returns a live lift/base snapshot for all three resorts, keyed by resort"]:::built
-            ots_one["fetch_resort_snapshot(resort_key)<br/>fetches one resort's OnTheSnow ski-report page and parses lifts_open, lifts_total, base_depth_cm"]:::built
+            ots_all["fetch_all_snapshots() — returns a live lift/base snapshot for all three resorts, keyed by resort"]:::built
+            ots_one["fetch_resort_snapshot(resort_key) — fetches one resort's OnTheSnow ski-report page and parses lifts_open, lifts_total, base_depth_cm"]:::built
         end
 
         subgraph ing_meteo["ingest/open_meteo.py"]
-            meteo_fetch["fetch_resort_forecast(lat, lon, elevation_high, elevation_mid)<br/>fetches one resort's hourly forecast via two elevation-specific calls and merges them"]:::built
-            meteo_low["_fetch(lat, lon, elevation, variables, past_days)<br/>performs a single Open-Meteo HTTP GET and returns the raw JSON"]:::built
-            meteo_windows["extract_windows(hourly)<br/>slices raw hourly data into per-day AM/PM windows with aggregated factor values"]:::built
+            meteo_fetch["fetch_resort_forecast(lat, lon, elevation_high, elevation_mid) — fetches one resort's hourly forecast via two elevation-specific calls and merges them"]:::built
+            meteo_low["_fetch(lat, lon, elevation, variables, past_days) — performs a single Open-Meteo HTTP GET and returns the raw JSON"]:::built
+            meteo_windows["extract_windows(hourly) — slices raw hourly data into per-day AM/PM windows with aggregated factor values"]:::built
         end
 
         subgraph ing_shared["shared/resorts.py"]
-            resorts_data["RESORTS<br/>static per-resort config: coordinates and low / mid / high elevations"]:::built
+            resorts_data["RESORTS — static per-resort config: coordinates and low / mid / high elevations"]:::built
         end
     end
 
@@ -115,7 +115,7 @@ flowchart TD
 ```
 
 **Note on `extract_windows`.** It's on the critical path — its output shape is
-exactly what `scorer.score_window` reads back out of DynamoDB, so it defines the
+exactly what the scorer's per-window scoring reads back out of DynamoDB, so it defines the
 DynamoDB item schema.
 
 **Note on `fetch_resort_snapshot`.** OnTheSnow is a Next.js app: every ski-report
@@ -133,7 +133,8 @@ middle → summit order.
 Triggered by API Gateway. `GET /conditions` just returns the cached overview;
 `POST /recommend` loads the cache and runs the scoring model with the user's
 preferences. `scorer.rank` is the heart of it — everything below `rank` is the
-scoring model from [ARCHITECTURE.md](ARCHITECTURE.md).
+scoring model from [ARCHITECTURE.md](ARCHITECTURE.md). Arrows are numbered per
+route (**GET 1–2**, **POST 1–3**), like the ingest diagram.
 
 ```mermaid
 flowchart TD
@@ -141,76 +142,73 @@ flowchart TD
 
     subgraph API["API Lambda"]
         subgraph api_handler["api/handler.py"]
-            api_main["lambda_handler(event, context)<br/>entry point; routes GET /conditions and POST /recommend"]:::built
-            api_load["_load_conditions()<br/>reads all resort items from DynamoDB into the conditions dict (shared by both routes)"]:::built
+            api_main["lambda_handler(event, context) — entry point; routes GET /conditions and POST /recommend"]:::built
+            api_load["_load_conditions() — reads all resort items from DynamoDB into the conditions dict (shared by both routes)"]:::built
         end
 
         subgraph api_overview["api/overview.py"]
-            overview["format_overview(conditions)<br/>turns the raw cached values into the human-readable overview (band labels and words); the frontend picks the icons"]:::built
+            overview["format_overview(conditions) — turns the raw cached values into the human-readable overview (band labels and words); the frontend picks the icons"]:::built
         end
 
         subgraph api_scorer["api/scorer.py"]
-            rank["rank(conditions, preferences)<br/>scores every (resort, day), keeps the best resort per day, ranks days, returns up to 3 cards — each with an 8-factor why + runner-up contrast"]:::built
-            gates["apply_gates(candidates, conditions, preferences)<br/>drops ineligible candidates — Selwyn for intermediate/advanced, and any resort with 0% lifts open"]:::built
-            window["_weather_scores · _resort_scores · _window_score · _combined_scores<br/>per-factor 0–1 scores per window (N/A drop out); weighted-average one window; mean across windows for selection"]:::built
-            day["score_day(am, pm)<br/>combines the two windows into one day score: two-thirds the better window plus one-third the worse"]:::built
-            topf["select_factors · _describe_factor · _build_contrast<br/>picks 8 factors (top-4 weight + top-4 score), describes them in the overview band words, builds the 2-factor runner-up contrast"]:::built
+            rank["rank(conditions, preferences) — scores every (resort, day), keeps the best resort per day, ranks days, returns up to 3 cards — each with an 8-factor why + runner-up contrast"]:::built
+            gates["apply_gates(candidates, conditions, preferences) — drops ineligible candidates — Selwyn for intermediate/advanced, and any resort with 0% lifts open"]:::built
+            window["_weather_scores · _resort_scores · _window_score · _combined_scores — per-factor 0–1 scores per window (N/A drop out); weighted-average one window; mean across windows for selection"]:::built
+            day["score_day(am, pm) — combines the two windows into one day score: two-thirds the better window plus one-third the worse"]:::built
+            topf["select_factors · _describe_factor · _build_contrast — picks 8 factors (top-4 weight + top-4 score), describes them in the overview band words, builds the 2-factor runner-up contrast"]:::built
         end
 
         subgraph api_explain["api/explain.py"]
-            explain["generate_why(cards, preferences)<br/>Bedrock (Claude Haiku 4.5) rephrases each card's fact package into prose, guardrailed to the facts; templated fallback if unavailable"]:::built
+            explain["generate_why(cards, preferences) — Bedrock (Claude Haiku 4.5) rephrases each card's fact package into prose, guardrailed to the facts; templated fallback if unavailable"]:::built
         end
 
         subgraph api_factors["shared/factors.py"]
-            weights["build_weights(preferences)<br/>turns user preferences into a factor→weight dict (opt-ins plus snowy / bluebird boosts)"]:::built
-            isprecip["is_precipitating(precip_mm, precip_prob)<br/>true if precip is likely and meaningful — the gate for the whole snow story"]:::built
-            ptype["precip_type(freezing_level_m, elev_low, elev_high)<br/>classifies precipitation as snow, mix, or rain from freezing level vs resort elevations"]:::built
+            weights["build_weights(preferences) — turns user preferences into a factor→weight dict (opt-ins plus snowy / bluebird boosts)"]:::built
+            isprecip["is_precipitating(precip_mm, precip_prob) — true if precip is likely and meaningful — the gate for the whole snow story"]:::built
+            ptype["precip_type(freezing_level_m, elev_low, elev_high) — classifies precipitation as snow, mix, or rain from freezing level vs resort elevations"]:::built
             subgraph FACTORS["scoring functions — each maps a reading to 0–1"]
-                f_rain["score_rain_penalty(...)<br/>1 all-snow, 0.3 mix, 0 all-rain"]:::built
-                f_wind["score_wind(...)<br/>1 at 15 km/h or less, down to 0 at 60 km/h or more"]:::built
-                f_amount["score_snow_amount(cm)<br/>min(cm / 20, 1)"]:::built
-                f_quality["score_snow_quality(temp_c)<br/>cold → 1, marginal → 0.5, warm → 0"]:::built
-                f_recent["score_recent_snow(cm)<br/>min(cm / 40, 1)"]:::built
-                f_base["score_base_depth(cm)<br/>clamp((cm − 30) / 60, 0, 1)"]:::built
-                f_sun["score_sunniness(cloud_pct)<br/>1 − cloud_cover / 100"]:::built
-                f_lifts["score_lifts(open, total)<br/>open / total"]:::built
+                f_rain["score_rain_penalty(...) — 1 all-snow, 0.3 mix, 0 all-rain"]:::built
+                f_wind["score_wind(...) — 1 at 15 km/h or less, down to 0 at 60 km/h or more"]:::built
+                f_amount["score_snow_amount(cm) — min(cm / 20, 1)"]:::built
+                f_quality["score_snow_quality(temp_c) — cold → 1, marginal → 0.5, warm → 0"]:::built
+                f_recent["score_recent_snow(cm) — min(cm / 40, 1)"]:::built
+                f_base["score_base_depth(cm) — clamp((cm − 30) / 60, 0, 1)"]:::built
+                f_sun["score_sunniness(cloud_pct) — 1 − cloud_cover / 100"]:::built
+                f_lifts["score_lifts(open, total) — open / total"]:::built
             end
         end
 
         subgraph api_resorts["shared/resorts.py"]
-            rscores["ABILITY_SCORES · SIZE_SCORES · LENGTH_SCORES · PRICE_SCORES (0–1 scores)<br/>SIZE_LABELS · LENGTH_LABELS · TERRAIN_LABELS (overview character words)<br/>static per-resort lookup tables"]:::built
+            rscores["ABILITY_SCORES · SIZE_SCORES · LENGTH_SCORES · PRICE_SCORES (0–1 scores) — SIZE_LABELS · LENGTH_LABELS · TERRAIN_LABELS (overview character words) — static per-resort lookup tables"]:::built
         end
     end
 
     DDB[("DynamoDB — ConditionsTable")]:::store
-    BEDROCK["Amazon Bedrock<br/>Claude Haiku 4.5 — rephrases facts into prose"]:::ext
+    BEDROCK["Amazon Bedrock — Claude Haiku 4.5 — rephrases facts into prose"]:::ext
 
     AGW -->|"invokes on each request"| api_main
-    api_main -->|"GET — load the cache"| api_load
-    api_main -->|"GET — then format for display"| overview
-    api_main -->|"POST — load the cache"| api_load
-    api_main -->|"POST — then score with prefs"| rank
-    api_main -->|"POST — then generate the why prose"| explain
-    api_load -->|"read all resort items"| DDB
 
+    %% GET /conditions — read cache, format, return
+    api_main -->|"GET 1 · POST 1 — load the cache"| api_load
+    api_load -->|"read all resort items"| DDB
+    api_main -->|"GET 2 — format for display"| overview
+
+    %% POST /recommend — load cache, score, generate prose
+    api_main -->|"POST 2 — score with prefs"| rank
+    api_main -->|"POST 3 — generate the why prose"| explain
+    explain -->|"grounded rephrasing (strict prompt)"| BEDROCK
+
+    %% inside rank — the scoring model (zoom-in on POST 2)
     rank -->|"prefs → factor weights"| weights
     rank -->|"drop ineligible (resort, day) combos"| gates
     rank -->|"score each half-day (AM and PM)"| window
     rank -->|"combine the two windows"| day
     rank -->|"select + describe factors, build contrast"| topf
-
     window -->|"is precip likely and meaningful?"| isprecip
     window -->|"if precipitating, classify the type"| ptype
     window -->|"score each active factor"| FACTORS
     window -->|"look up user-dependent scores"| rscores
-    topf -->|"describe factors in band words"| overview
     topf -->|"static character labels"| rscores
-
-    explain -->|"grounded rephrasing (strict prompt)"| BEDROCK
-
-    overview -->|"same precip gate as the scorer"| isprecip
-    overview -->|"same rain/snow split as the scorer"| ptype
-    overview -->|"look up static character labels"| rscores
 
     classDef built fill:#d3f9d8,stroke:#2b8a3e,color:#000;
     classDef todo fill:#fff3bf,stroke:#e67700,color:#000,stroke-dasharray: 5 3;
@@ -247,9 +245,10 @@ flowchart TD
   (model access enabled + region), which local tests can't exercise.
 - `build_weights` starts from `BASE_WEIGHTS` (also in `shared/factors.py`) and
   bumps individual weights per the preference answers.
-- `top_factors` is written but its mapping from factor names to plain-English
-  explanation strings is a TODO, and `rank` doesn't call it yet — hence the dashed
-  arrow. Wiring it in is what turns each result into an expandable "why" card.
-- `score_window` reads the resort-level values (lifts, base depth, ability, size,
-  run length, price) once and feeds them into every window's average, so they
-  differentiate resorts rather than days.
+- Resort-level factors (lifts, base depth, ability, size, run length, price) are
+  scored once by `_resort_scores` and fed into **every** window's weighted average,
+  so they differentiate resorts rather than half-days.
+- **A few shared-lookup edges are omitted from the diagram** to keep the flow
+  readable: `format_overview` also reuses the `is_precipitating` / `precip_type`
+  helpers and the resorts' character labels, and the scorer's `_describe_factor`
+  reuses `overview.py`'s band-word helpers (both covered in the notes above).
