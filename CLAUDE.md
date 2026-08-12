@@ -61,14 +61,57 @@ engine here once it exists._
 - [x] Draw function connection diagrams for each backend file — see [BACKEND_DESIGN.md](BACKEND_DESIGN.md)
 - [x] Write `api/handler.py` — routing (GET /conditions, POST /recommend) + `_load_conditions()`; finalise function signatures / variable names first
 - [x] Recommendation ranking → **best resort per day** (one card per day, top 3 days), replacing top-3 (resort,day) combos. `scorer.py` now builds an 8-factor "why" package (top-4 by weight + top-4 by score, static factors eligible) + a 2-factor runner-up contrast (prefers band-differing factors), all described with the overview band words.
-- [x] Step 2 — `api/explain.py` `generate_why()`: one Bedrock call (Claude Haiku 4.5, `anthropic.claude-haiku-4-5` via `AnthropicBedrockMantle`) rephrases each card's facts into a small paragraph, strictly guardrailed; templated fallback; wired into `POST /recommend`. **Live Bedrock call still untested — needs model access + region at deploy.**
+- [x] Step 2 — `api/explain.py` `generate_why()`: one Bedrock call (Claude Haiku 4.5, model id `anthropic.claude-haiku-4-5-20251001-v1:0`) via **boto3 `bedrock-runtime`** (not the Anthropic SDK — so the API Lambda has zero pip deps and needs no Docker to build) rephrases each card's facts into a small paragraph, strictly guardrailed; templated fallback; wired into `POST /recommend`. **Live Bedrock call still untested.**
 - [x] Implement `format_overview()` in `api/overview.py` — raw cached values → band words + raw numbers (frontend picks icons + lays out as aligned dot points). Precip gate/rain-snow split moved to `shared/factors.py` (`is_precipitating`, `precip_type`) so overview and scorer classify identically.
 - [x] Implement `extract_windows()` in `open_meteo.py`
 - [x] Implement OnTheSnow scraper (`onthesnow.py`) — parses the `__NEXT_DATA__` JSON blob (Next.js), not the rendered HTML; no bs4 needed
-- [ ] Write `template.yaml` (SAM — all AWS infrastructure)
-- [ ] Write `samconfig.toml`
-- [ ] Deploy SAM skeleton to AWS early (before frontend)
-- [ ] Build frontend
+- [x] Write `template.yaml` (SAM — DynamoDB, shared layer, 2 Lambdas, HTTP API, EventBridge schedule) + `samconfig.toml`
+- [x] Deploy SAM skeleton to AWS — **stack is live in ap-southeast-2** (see "Deployment" below)
+- [x] Drop the only third-party dep: `ingest` now uses stdlib `urllib` instead of `requests`, so the **whole backend has zero pip deps** (stdlib + runtime boto3) — no Docker/container needed to build
+- [x] **Test the deployed backend end-to-end** — fixed float→Decimal bug in ingest, fixed Bedrock inference profile (`au.anthropic.claude-haiku-4-5-20251001-v1:0`). Both endpoints live and returning real data + real Haiku prose.
+- [ ] Commit the still-untracked backend to git: `backend/ingest/`, `backend/api/`, `template.yaml`, `samconfig.toml` (+ the `urllib` edits). Only docs + `shared/` are committed so far.
+- [ ] Build frontend (React + Vite — scaffold already exists in `frontend/`, untracked)
+
+## Deployment
+
+Live serverless backend, deployed with AWS SAM.
+
+- **Region:** `ap-southeast-2` (Sydney) — everything, incl. the Bedrock call (Haiku 4.5 is available there).
+- **Stack:** `nsw-ski-planner` · **AWS CLI profile:** `ski-planner` (personal account) · **region:** `ap-southeast-2`.
+- **API base URL:** `https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com` → `GET /conditions`, `POST /recommend`.
+- **DynamoDB table:** `nsw-ski-planner-ConditionsTable-8ER2M7M89UK3`.
+- **Build/deploy:** from repo root, `sam build` then `sam deploy` (no `--use-container`; needs local `python3.12`, installed via brew). `samconfig.toml` pins profile/region/model-id.
+- **Cost:** effectively free — Lambda/DynamoDB/EventBridge/HTTP API all free-tier; only Bedrock tokens cost (cents).
+
+## Next — testing the deployed backend
+
+1. **Populate the cache:** invoke the ingest Lambda by hand (schedule is every 3h; until it runs, `GET /conditions` returns 503).
+2. **`GET /conditions`** → overview JSON.
+3. **`POST /recommend`** (body keys: `ability, cost_matters, bigger_resort, longer_runs, snow_pref, selected_dates`) → ranked cards + Haiku "why" prose from Bedrock.
+4. Then → **frontend**.
+
+Turnkey commands (profile `ski-planner`, region `ap-southeast-2`):
+
+```bash
+# 1. Invoke ingest to populate DynamoDB (prints tailed logs base64 → decode)
+FN=$(aws cloudformation describe-stack-resource --stack-name nsw-ski-planner \
+  --logical-resource-id IngestFunction --query 'StackResourceDetail.PhysicalResourceId' \
+  --output text --profile ski-planner --region ap-southeast-2)
+aws lambda invoke --function-name "$FN" --log-type Tail \
+  --profile ski-planner --region ap-southeast-2 /tmp/ingest.json
+
+# 2. Overview
+curl -s https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com/conditions | python3 -m json.tool
+
+# 3. Recommendation — set selected_dates to dates seen in the overview
+curl -s -X POST https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com/recommend \
+  -H 'Content-Type: application/json' \
+  -d '{"ability":"beginner","cost_matters":false,"snow_pref":"snowy","selected_dates":["YYYY-MM-DD","YYYY-MM-DD"]}' \
+  | python3 -m json.tool
+
+# CloudWatch logs for a function (swap IngestFunction / ApiFunction)
+sam logs --stack-name nsw-ski-planner --name IngestFunction --profile ski-planner --region ap-southeast-2
+```
 
 ## Goals & constraints
 
