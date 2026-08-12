@@ -1,0 +1,2 @@
+# The API Lambda only uses boto3 (DynamoDB + Bedrock via bedrock-runtime), which
+# the Lambda Python runtime already provides — no dependencies to bundle.
