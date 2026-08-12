@@ -69,8 +69,19 @@ engine here once it exists._
 - [x] Deploy SAM skeleton to AWS — **stack is live in ap-southeast-2** (see "Deployment" below)
 - [x] Drop the only third-party dep: `ingest` now uses stdlib `urllib` instead of `requests`, so the **whole backend has zero pip deps** (stdlib + runtime boto3) — no Docker/container needed to build
 - [x] **Test the deployed backend end-to-end** — fixed float→Decimal bug in ingest, fixed Bedrock inference profile (`au.anthropic.claude-haiku-4-5-20251001-v1:0`). Both endpoints live and returning real data + real Haiku prose.
-- [ ] Commit the still-untracked backend to git: `backend/ingest/`, `backend/api/`, `template.yaml`, `samconfig.toml` (+ the `urllib` edits). Only docs + `shared/` are committed so far.
-- [ ] Build frontend (React + Vite — scaffold already exists in `frontend/`, untracked)
+- [x] Commit backend to git — all of `backend/`, `template.yaml`, `samconfig.toml` pushed.
+- [x] Agree frontend design (flow already in ARCHITECTURE.md; visual layer now in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md))
+
+### Frontend (React + Vite — scaffold exists in `frontend/`, intentionally untracked for now)
+
+_Design phase (do first, no real app code yet):_
+- [ ] **Ask Charlotte:** which factors headline the day-card (3 slots), their order, and the swap rule (e.g. is wind always shown or only when high?) — see FRONTEND_DESIGN.md "Open decisions"
+- [ ] Build throwaway **Artifact mockup** of the Overview (stacked resort sections, horizontal day-cards, AM/PM split, `+` expand) — judge density + horizontal-scroll by eye
+- [ ] Mock up the **Recommendation view** + the **preferences modal** (+ catchy entry button)
+- [ ] Refine visual style — colours, typography, icon set for weather factors — against the mockups
+
+_Build phase (break down further once the mockups land):_
+- [ ] Plan component breakdown + folder structure; wire to live API (`GET /conditions`, `POST /recommend`); date picker (≤10 days); build + host on S3/CloudFront
 
 ## Deployment
 

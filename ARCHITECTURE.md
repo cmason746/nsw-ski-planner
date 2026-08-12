@@ -25,8 +25,10 @@ is a decision-support tool, not a weather dashboard.
    day, ranked best-day-first, capped at 3) as **expandable cards**: a collapsed
    summary (rank, resort, day, headline), expandable to the full "why."
 
-Layout is a single scrolling page: the **forecast/overview at the top**, then
-preferences and the **top-3 result cards** below.
+Layout: the **overview** and the **recommendation** are two in-app views the user
+flicks between (so opening the recommendation doesn't lose the overview), with
+preferences entered via a button/modal in between. See
+[FRONTEND_DESIGN.md](FRONTEND_DESIGN.md) for the full visual/layout design.
 
 Key implication: the **overview (step 2) is preference-independent**; the
 **scoring/weighting only happens at step 4** once preferences are known. Condition
