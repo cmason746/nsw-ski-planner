@@ -5,6 +5,6 @@ stack_name = "nsw-ski-planner"
 region = "ap-southeast-2"
 profile = "ski-planner"
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false  # don't pause for interactive changeset approval on deploy
 resolve_s3 = true
 parameter_overrides = "BedrockModelId=au.anthropic.claude-haiku-4-5-20251001-v1:0"

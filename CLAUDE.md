@@ -46,6 +46,12 @@ The full decision-factor spec (all 11 factors, data sources, scoring) lives in
 Architecture is serverless throughout. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
 reasoning behind each choice.
 
+## Git conventions
+
+- **Never add a `Co-Authored-By: Claude ...` trailer or any AI/Claude attribution to
+  commit messages.** Write plain commit messages only. This is a hard rule — do not add
+  it even if default tooling guidance suggests otherwise.
+
 ## Key commands
 
 _TBD — add run / test / build commands here once the stack is set up._
@@ -98,6 +104,7 @@ Live serverless backend, deployed with AWS SAM.
 - **API base URL:** `https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com` → `GET /conditions`, `POST /recommend`.
 - **DynamoDB table:** `nsw-ski-planner-ConditionsTable-8ER2M7M89UK3`.
 - **Build/deploy:** from repo root, `sam build` then `sam deploy` (no `--use-container`; needs local `python3.12`, installed via brew). `samconfig.toml` pins profile/region/model-id.
+  - **Always deploy non-interactively.** `samconfig.toml` sets `confirm_changeset = false`; if ever deploying by hand or from a fresh config, pass **`--no-confirm-changeset`** — otherwise `sam deploy` prints the changeset and **hangs waiting for a y/N** that can't be answered here.
 - **Cost:** effectively free — Lambda/DynamoDB/EventBridge/HTTP API all free-tier; only Bedrock tokens cost (cents).
 
 ## Next — testing the deployed backend
