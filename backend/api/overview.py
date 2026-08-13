@@ -9,9 +9,11 @@ and pick its own icons. Words are laid out as aligned dot points on the frontend
 
 Structure returned, per resort:
   { name, lifts, base_depth, character, days: [ { date, recent_snow, am, pm } ] }
-where am/pm hold the per-window weather words. N/A factors are omitted from a
-window (a snowing window has no `sunniness`; a dry window has no `snow_amount`)
-— mirroring how they drop out of the scoring model.
+where am/pm hold the per-window weather words. Snow factors are omitted when not
+snowing (a dry window has no `snow_amount`/`snow_quality`), but `sunniness` is shown
+on every window — including snow days — since the overview is informational, unlike
+the scorer which drops sunniness when snowing. Frontend branches on the window
+`type` field, not on which keys are present.
 """
 
 from shared.resorts import RESORTS, SIZE_LABELS, LENGTH_LABELS, TERRAIN_LABELS
@@ -29,6 +31,7 @@ def format_overview(conditions: dict) -> dict:
             "lifts":      _lifts_field(data["lifts_open"], data["lifts_total"]),
             "base_depth": _base_depth_field(data["base_depth_cm"]),
             "character":  _character(resort_key),
+            "elevations": _elevations_field(RESORTS[resort_key]),
             "days": [
                 {
                     "date":        day["date"],
@@ -63,6 +66,9 @@ def _format_window(w: dict, resort_static: dict) -> dict:
             "pct":   prob,
             "label": _precip_prob_label(prob),
         },
+        # `type` is the stable machine value ("dry"/"snow"/"mix"/"rain"); `rain_snow`
+        # is the display string. Frontend branches on `type`, shows `rain_snow`.
+        "type": ptype,
         "rain_snow": _rain_snow_label(ptype, freezing),
         "wind": {
             "kmh":   kmh,
@@ -77,13 +83,18 @@ def _format_window(w: dict, resort_static: dict) -> dict:
             "temp_c": round(w["temperature_c"]),
             "label":  _snow_quality_label(w["temperature_c"]),
         }
-    # Sunniness — N/A when snowing (cloudy anyway; shown on dry/rain windows).
-    else:
-        sunniness_pct = round(100 - w["cloud_cover_pct"])
-        window["sunniness"] = {
-            "sunniness_pct": sunniness_pct,
-            "label":         _sunniness_label(sunniness_pct),
-        }
+
+    # Sunniness — always shown on the overview. NOTE: this diverges from the scorer,
+    # which drops sunniness when snowing so powder days aren't penalised for lack of
+    # sun. The overview is informational, not scored, so "cloudy" on a snow day is
+    # just honest context (and a mix day can be genuinely partly cloudy). Because snow
+    # windows now also carry `sunniness`, the frontend must branch on `type`, not on
+    # which keys are present.
+    sunniness_pct = round(100 - w["cloud_cover_pct"])
+    window["sunniness"] = {
+        "sunniness_pct": sunniness_pct,
+        "label":         _sunniness_label(sunniness_pct),
+    }
 
     return window
 
@@ -125,11 +136,12 @@ def _snow_amount_label(cm: float) -> str:
 
 def _snow_quality_label(temp_c: float) -> str:
     # Bands match score_snow_quality so the words track the score.
+    # "quality" is in each label so the frontend reads e.g. "-5°C = dry & light quality snow".
     if temp_c <= -3:
-        return "dry & light snow"
+        return "dry & light quality snow"
     if temp_c <= -0.5:
-        return "good snow"
-    return "wet & sticky snow"
+        return "OK quality snow"
+    return "wet & sticky quality snow"
 
 
 def _wind_label(kmh: float) -> str:
@@ -192,6 +204,15 @@ def _character(resort_key: str) -> list:
         LENGTH_LABELS[resort_key],
         TERRAIN_LABELS[resort_key],
     ]
+
+
+def _elevations_field(resort_static: dict) -> dict:
+    """Lift-served elevation range (m ASL) — displayed as a low–high range. Static per
+    resort; helps users read the freezing-level rain/snow split against the mountain."""
+    return {
+        "low":  resort_static["elevation_low"],
+        "high": resort_static["elevation_high"],
+    }
 
 
 # --- helpers ---
