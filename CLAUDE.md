@@ -75,13 +75,19 @@ engine here once it exists._
 ### Frontend (React + Vite — scaffold exists in `frontend/`, intentionally untracked for now)
 
 _Design phase (do first, no real app code yet):_
-- [ ] **Ask Charlotte:** which factors headline the day-card (3 slots), their order, and the swap rule (e.g. is wind always shown or only when high?) — see FRONTEND_DESIGN.md "Open decisions"
-- [ ] Build throwaway **Artifact mockup** of the Overview (stacked resort sections, horizontal day-cards, AM/PM split, `+` expand) — judge density + horizontal-scroll by eye
-- [ ] Mock up the **Recommendation view** + the **preferences modal** (+ catchy entry button)
-- [ ] Refine visual style — colours, typography, icon set for weather factors — against the mockups
+- [x] **Day-card headline decided** — `recent_snow` on its own top line; `rain_snow` at top of each AM/PM column; top-2 factors + rest expandable; **one factor order per day** ("snowiest wins": snow>mix>rain>dry), both columns share it; split-day snow gaps filled as "no new snow". Full spec in FRONTEND_DESIGN.md.
+- [x] Built throwaway **Overview mockup** — `mockups/overview.html` (self-contained, fake data shaped like `GET /conditions`). Agreed: Snowbound brand + tagline, white/blue palette, wide ~350px cards, AM/PM 2-col grid, `VALUE = descriptor` rows, elevation range in resort header, date-picker pill.
+- [x] Mock up the **Recommendation view** + the **preferences wizard** — `mockups/recommendation.html`. Agreed: one-question-at-a-time modal (auto-opens on entering the tab; every Q required, "don't mind" valid; beginners only asked ability+cost), persistent "Your picks" bar + ✎ Edit, ranked cards (rank + resort + day + top-3 weight-ordered factor chips + `NN/100` model score), expand → `why` prose **plus** full 8-factor grid.
+- [ ] Refine visual style — colours, typography, **icon set** (emoji are placeholders) — against the mockups
 
 _Build phase (break down further once the mockups land):_
 - [ ] Plan component breakdown + folder structure; wire to live API (`GET /conditions`, `POST /recommend`); date picker (≤10 days); build + host on S3/CloudFront
+
+**⚠️ Pending backend redeploy (batched — `sam build && sam deploy` before wiring frontend):** the following `api/overview.py` changes are committed to code but NOT yet live on the deployed API:
+- `type` field per window (`dry`/`snow`/`mix`/`rain`) alongside `rain_snow`.
+- `elevations: {low, high}` per resort.
+- `sunniness` now emitted on **every** window (incl. snow/mix) — overview-only; scorer unchanged.
+- `_snow_quality_label`: added "quality" to each band; middle band `good` → `OK`.
 
 ## Deployment
 

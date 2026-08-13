@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Snowbound — Recommendation mockup</title>
+<style>
+  :root {
+    --bg:        #e9f0fb;
+    --bg2:       #f4f8ff;
+    --card:      #ffffff;
+    --ink:       #14243a;
+    --ink-soft:  #566b83;
+    --ink-faint: #8ba0b8;
+    --line:      #e3ecf6;
+    --snow:      #2563eb;
+    --snow-bg:   #eaf2ff;
+    --sun:       #e0940f;
+    --accent:    #2563eb;
+    --accent-ink:#ffffff;
+    --gold:      #f4b93e;
+    --shadow:    0 1px 2px rgba(20,50,90,.05), 0 6px 18px rgba(20,50,90,.07);
+    --shadow-lg: 0 10px 40px rgba(20,50,90,.22);
+    --radius:    14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(180deg, var(--bg2), var(--bg));
+    background-attachment: fixed; color: var(--ink); -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 22px 26px 60px; }
+
+  /* ---- Top bar (shared with Overview) ---- */
+  .topbar { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; padding-top: 8px; margin-bottom: 34px; }
+  .brand-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .brand { font-size: 46px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+  .brand .flake { color: var(--snow); }
+  .tagline { font-size: 14.5px; color: var(--ink-soft); font-weight: 500; }
+  .tabs { display: inline-flex; background: #dde5ee; border-radius: 999px; padding: 4px; margin-left: 12px; }
+  .tab { border: 0; background: transparent; cursor: pointer; padding: 7px 16px; border-radius: 999px;
+         font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+  .tab.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .spacer { flex: 1; }
+
+  /* ---- Preferences summary bar (persists at top once set) ---- */
+  .prefbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 14px 18px; margin-bottom: 22px;
+  }
+  .prefbar .lead { font-weight: 800; font-size: 14px; }
+  .pchips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+  .pchip { background: var(--snow-bg); color: #1c4bb0; border-radius: 999px;
+           padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
+  .edit-btn { border: 1px solid #cdd9e8; background: #fff; cursor: pointer; border-radius: 999px;
+              padding: 8px 16px; font-weight: 700; font-size: 13px; color: var(--ink); }
+  .edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .section-title { font-size: 15px; font-weight: 800; color: var(--ink-soft); margin: 0 2px 12px; }
+
+  /* ---- Result cards ---- */
+  .rcard { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+           margin-bottom: 16px; overflow: hidden; }
+  .rcard.rank1 { box-shadow: 0 0 0 2px var(--gold), var(--shadow-lg); }
+  .rhead { display: flex; align-items: center; gap: 16px; padding: 16px 18px; cursor: pointer; }
+  .rank { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+          font-weight: 800; font-size: 17px; background: #eef2f8; color: var(--ink-soft); }
+  .rcard.rank1 .rank { background: var(--gold); color: #4a3300; }
+  .rtitle { flex: 1; min-width: 0; }
+  .rtitle .top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .resort { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+  .rdate  { font-size: 14px; color: var(--ink-soft); font-weight: 600; }
+  .rwinner { font-size: 11.5px; font-weight: 800; color: var(--gold); text-transform: uppercase;
+             letter-spacing: .06em; margin-left: 2px; }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; background: #f2f6fb; border-radius: 999px;
+          padding: 5px 11px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .chip .ico { font-size: 13px; }
+  .score { flex: 0 0 auto; text-align: right; }
+  .score-num { font-size: 24px; font-weight: 800; color: var(--snow); line-height: 1; }
+  .score-num .of { font-size: 12px; color: var(--ink-faint); font-weight: 700; }
+  .score-cap { font-size: 9.5px; color: var(--ink-faint); font-weight: 700; text-transform: uppercase;
+               letter-spacing: .04em; margin-top: 4px; max-width: 92px; margin-left: auto; line-height: 1.3; }
+  .caret { flex: 0 0 auto; color: var(--ink-faint); font-size: 18px; transition: transform .15s; }
+  .rcard.open .caret { transform: rotate(180deg); }
+
+  .rbody { display: none; padding: 0 18px 18px 72px; }
+  .rcard.open .rbody { display: block; }
+  .why { font-size: 14.5px; line-height: 1.6; color: var(--ink); margin: 4px 0 16px;
+         padding: 14px 16px; background: var(--snow-bg); border-radius: 12px; }
+  .why-label { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+               color: var(--snow); margin-bottom: 6px; }
+  .facts-label { font-size: 12px; font-weight: 800; color: var(--ink-faint); text-transform: uppercase;
+                 letter-spacing: .06em; margin: 0 0 10px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
+  .frow { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+  .frow .ico { font-size: 14px; width: 16px; text-align: center; flex: 0 0 auto; }
+  .frow .val { font-weight: 800; white-space: nowrap; }
+  .frow .eq  { color: var(--ink-faint); font-weight: 700; }
+  .frow .lab { color: var(--ink-soft); }
+
+  /* ---- Preferences modal (wizard) ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(20,40,70,.45); backdrop-filter: blur(2px);
+             display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 20px; box-shadow: var(--shadow-lg); width: 100%; max-width: 480px;
+           padding: 26px 26px 22px; }
+  .modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #dbe3ee; }
+  .dot.done { background: var(--snow); }
+  .dot.current { background: var(--snow); box-shadow: 0 0 0 3px var(--snow-bg); }
+  .step-count { font-size: 12.5px; color: var(--ink-faint); font-weight: 700; }
+  .q { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 18px 0 18px; line-height: 1.25; }
+  .opts { display: flex; flex-direction: column; gap: 10px; }
+  .opt { border: 1.5px solid #dbe4ef; background: #fff; border-radius: 12px; padding: 14px 16px; cursor: pointer;
+         font-size: 15px; font-weight: 700; color: var(--ink); text-align: left; display: flex; align-items: center; gap: 10px; }
+  .opt:hover { border-color: #a9c2e6; }
+  .opt.sel { border-color: var(--accent); background: var(--snow-bg); color: #1c4bb0; }
+  .opt .oico { font-size: 18px; }
+  .modal-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
+  .back-btn { border: 0; background: transparent; cursor: pointer; color: var(--ink-soft); font-weight: 700; font-size: 14px; padding: 8px; }
+  .back-btn[disabled] { visibility: hidden; }
+  .next-btn { border: 0; cursor: pointer; background: linear-gradient(135deg, #2563eb, #38a5f0); color: #fff;
+              padding: 12px 26px; border-radius: 999px; font-size: 15px; font-weight: 800; box-shadow: 0 4px 14px rgba(37,99,235,.32); }
+  .next-btn[disabled] { opacity: .4; cursor: not-allowed; box-shadow: none; }
+  .modal-intro { font-size: 13px; color: var(--ink-soft); margin-bottom: 2px; }
+
+  .note { font-size: 12px; color: var(--ink-soft); margin-top: 28px; padding: 14px 16px; background: #fff;
+          border-radius: 12px; box-shadow: var(--shadow); line-height: 1.55; }
+  .note b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand-wrap">
+      <div class="brand"><span class="flake">❄</span> Snowbound</div>
+      <div class="tagline">Your guide to NSW's ski resorts</div>
+    </div>
+    <div class="tabs">
+      <button class="tab">Conditions Overview</button>
+      <button class="tab active">Resort Recommendation</button>
+    </div>
+    <div class="spacer"></div>
+  </div>
+
+  <div id="prefbar"></div>
+  <div id="results"></div>
+
+  <div class="note">
+    <b>Mockup notes.</b> Fake data shaped like <b>POST /recommend</b> (each card carries
+    <b>facts</b> in the overview's band words, a runner-up <b>contrast</b>, and the Bedrock
+    <b>why</b> paragraph). The <b>preferences wizard</b> pops up on entry (one question at a
+    time; every question must be answered — "don't mind" counts). Beginners are only asked
+    about cost. Once set, prefs sit in the bar up top — press <b>Edit</b> to reopen. Each
+    result card: collapsed = rank + resort + day + top-3 factor chips; expand = the
+    <b>why</b> paragraph <i>plus</i> the full factor grid (so you don't have to flick back to
+    the Overview). Emoji are placeholder icons.
+  </div>
+</div>
+
+<!-- Preferences modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-top">
+      <div class="dots" id="dots"></div>
+      <div class="step-count" id="stepCount"></div>
+    </div>
+    <div class="modal-intro" id="intro">Tell us what matters — we'll rank the resorts for you.</div>
+    <div class="q" id="qText"></div>
+    <div class="opts" id="opts"></div>
+    <div class="modal-nav">
+      <button class="back-btn" id="backBtn">← Back</button>
+      <button class="next-btn" id="nextBtn">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Question set (one at a time; branches for beginners) ----
+const QUESTIONS = [
+  { key:"ability", q:"What level skier are you?",
+    opts:[{v:"beginner",l:"Beginner"},{v:"intermediate",l:"Intermediate"},{v:"advanced",l:"Advanced"}] },
+  { key:"cost_matters", q:"Is lift-ticket cost important to you?",
+    opts:[{v:true,l:"Yes — keep it cheap",i:"💲"},{v:false,l:"Don't mind"}] },
+  { key:"bigger_resort", q:"Want a bigger resort with more terrain?", adv:true,
+    opts:[{v:true,l:"Yes — bigger is better",i:"🗺️"},{v:false,l:"Don't mind"}] },
+  { key:"longer_runs", q:"Do you like longer runs?", adv:true,
+    opts:[{v:true,l:"Yes — the longer the better",i:"↔️"},{v:false,l:"Don't mind"}] },
+  { key:"snow_pref", q:"Fresh snow or bluebird days?", adv:true,
+    opts:[{v:"snowy",l:"Fresh snow",i:"❄️"},{v:"bluebird",l:"Bluebird (sunny)",i:"☀️"},{v:"dont_mind",l:"Don't mind"}] },
+];
+
+// prefs state — null until the wizard completes
+let prefs = null;
+let draft = {};   // answers being collected
+let step = 0;     // index into the active path
+
+function activePath() {
+  const beginner = draft.ability === "beginner";
+  return QUESTIONS.filter(q => !(q.adv && beginner));
+}
+
+// ---- Modal / wizard ----
+const overlay = document.getElementById("overlay");
+
+function openWizard() {
+  draft = prefs ? { ...prefs } : {};
+  step = 0;
+  overlay.classList.add("show");
+  renderStep();
+}
+function closeWizard() { overlay.classList.remove("show"); }
+
+function renderStep() {
+  const path = activePath();
+  const q = path[step];
+  document.getElementById("intro").style.display = step === 0 ? "block" : "none";
+
+  // progress dots
+  document.getElementById("dots").innerHTML = path.map((_, i) =>
+    `<div class="dot ${i < step ? "done" : ""} ${i === step ? "current" : ""}"></div>`).join("");
+  document.getElementById("stepCount").textContent = `${step + 1} of ${path.length}`;
+
+  document.getElementById("qText").textContent = q.q;
+  document.getElementById("opts").innerHTML = q.opts.map(o =>
+    `<button class="opt ${draft[q.key] === o.v ? "sel" : ""}" data-v='${JSON.stringify(o.v)}'>
+       ${o.i ? `<span class="oico">${o.i}</span>` : ""}<span>${o.l}</span>
+     </button>`).join("");
+
+  document.querySelectorAll(".opt").forEach(btn => btn.addEventListener("click", () => {
+    draft[q.key] = JSON.parse(btn.dataset.v);
+    renderStep();  // re-render to show selection + enable Next
+  }));
+
+  document.getElementById("backBtn").disabled = step === 0;
+  const nextBtn = document.getElementById("nextBtn");
+  const answered = draft[q.key] !== undefined;
+  nextBtn.disabled = !answered;
+  nextBtn.textContent = step === path.length - 1 ? "See recommendations →" : "Next";
+}
+
+document.getElementById("backBtn").addEventListener("click", () => { if (step > 0) { step--; renderStep(); } });
+document.getElementById("nextBtn").addEventListener("click", () => {
+  const path = activePath();
+  if (step < path.length - 1) { step++; renderStep(); }
+  else {                        // finish
+    // beginners: clear any advanced answers that don't apply
+    prefs = { ability: draft.ability, cost_matters: !!draft.cost_matters };
+    if (draft.ability !== "beginner") {
+      prefs.bigger_resort = !!draft.bigger_resort;
+      prefs.longer_runs   = !!draft.longer_runs;
+      prefs.snow_pref     = draft.snow_pref;
+    }
+    closeWizard();
+    renderPrefBar();
+    renderResults();
+  }
+});
+
+// ---- Preferences summary bar ----
+function prefChips(p) {
+  const chips = [cap(p.ability) + " skier"];
+  if (p.cost_matters) chips.push("💲 cost matters");
+  if (p.bigger_resort) chips.push("🗺️ bigger resort");
+  if (p.longer_runs) chips.push("↔️ longer runs");
+  if (p.snow_pref === "snowy") chips.push("❄️ fresh snow");
+  else if (p.snow_pref === "bluebird") chips.push("☀️ bluebird");
+  return chips;
+}
+function renderPrefBar() {
+  if (!prefs) { document.getElementById("prefbar").innerHTML = ""; return; }
+  document.getElementById("prefbar").innerHTML = `
+    <span class="lead">Your picks</span>
+    <div class="pchips">${prefChips(prefs).map(c => `<span class="pchip">${c}</span>`).join("")}</div>
+    <button class="edit-btn" id="editBtn">✎ Edit</button>`;
+  document.getElementById("editBtn").addEventListener("click", openWizard);
+}
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ================= FAKE /recommend DATA =================
+const ICON = { sunniness:"☀️", snow_amount:"🏔️", snow_quality:"❄️", wind:"💨", rain_snow:"🌤️",
+               recent_snow:"🌨️", base_depth:"📏", lifts:"🚡", ability:"🎿", size:"🗺️", run_length:"↔️", price:"💲" };
+const FACTOR_NAME = { sunniness:"Sun", snow_amount:"New snow", snow_quality:"Snow quality", wind:"Wind",
+  rain_snow:"Conditions", recent_snow:"Recent snow", base_depth:"Base", lifts:"Lifts open",
+  ability:"Terrain", size:"Size", run_length:"Runs", price:"Price" };
+
+const CARDS = [
+  { resort:"Perisher", date:"2026-08-15", day_score:0.87,
+    facts:[
+      { factor:"sunniness", am:{sunniness_pct:82,label:"sunny"}, pm:{sunniness_pct:74,label:"sunny"} },
+      { factor:"recent_snow", cm:18, label:"a bit of recent snow" },
+      { factor:"wind", am:{kmh:18,label:"fine winds"}, pm:{kmh:24,label:"fine winds"} },
+      { factor:"base_depth", cm:96, label:"great base depth and excellent coverage" },
+      { factor:"lifts", open:38, total:45, pct:84, label:"38 of 45 open" },
+      { factor:"size", label:"largest ski resort in Australia" },
+      { factor:"ability", label:"suited to all abilities" },
+      { factor:"rain_snow", am:"no precipitation forecast", pm:"no precipitation forecast" },
+    ],
+    contrast:{ runner_up:"Thredbo", factors:[] },
+    why:"Saturday is the standout at Perisher: clear, sunny skies morning and afternoon with only light winds, sitting on a great 96cm base with a bit of recent snow still about. As the largest resort in Australia with 38 of 45 lifts running, it edges out Thredbo on both terrain and coverage for a sunny, cruisy day." },
+
+  { resort:"Perisher", date:"2026-08-14", day_score:0.84,
+    facts:[
+      { factor:"recent_snow", cm:41, label:"a lot of fresh snow" },
+      { factor:"snow_amount", am:{cm:14,label:"dump"}, pm:{cm:4,label:"decent",note:"rain below ~1700 m"} },
+      { factor:"snow_quality", am:{temp_c:-6,label:"dry & light quality snow"}, pm:{temp_c:-1,label:"OK quality snow"} },
+      { factor:"wind", am:{kmh:22,label:"fine winds"}, pm:{kmh:30,label:"fine winds"} },
+      { factor:"base_depth", cm:96, label:"great base depth and excellent coverage" },
+      { factor:"lifts", open:38, total:45, pct:84, label:"38 of 45 open" },
+      { factor:"rain_snow", am:"snow across whole resort", pm:"snow up high, rain below ~1700 m" },
+      { factor:"size", label:"largest ski resort in Australia" },
+    ],
+    contrast:{ runner_up:"Thredbo", factors:[] },
+    why:"Friday is a powder day at Perisher — a big morning snow dump of dry, light snow on top of a lot of recent fresh snow, with fine winds keeping the lifts turning. It stays snowy up high into the afternoon (turning to rain low down). With a deeper base than Thredbo and more of the mountain open, it's the pick for chasing fresh snow." },
+
+  { resort:"Thredbo", date:"2026-08-16", day_score:0.71,
+    facts:[
+      { factor:"sunniness", am:{sunniness_pct:60,label:"partly cloudy"}, pm:{sunniness_pct:52,label:"partly cloudy"} },
+      { factor:"wind", am:{kmh:38,label:"windy, some lifts may be on hold"}, pm:{kmh:47,label:"windy, some lifts may be on hold"} },
+      { factor:"run_length", label:"long runs" },
+      { factor:"base_depth", cm:88, label:"good base depth and decent coverage" },
+      { factor:"lifts", open:13, total:15, pct:87, label:"13 of 15 open" },
+      { factor:"recent_snow", cm:10, label:"a bit of recent snow" },
+      { factor:"ability", label:"suited to all abilities" },
+      { factor:"size", label:"large ski resort" },
+    ],
+    contrast:{ runner_up:"Perisher", factors:[] },
+    why:"Sunday at Thredbo is a solid third option: partly cloudy with a good 88cm base and 13 of 15 lifts open, on the resort with the longest runs. It's breezy — some lifts may hold in the stronger afternoon gusts — but it just pips Perisher thanks to those longer runs." },
+];
+
+// ---- Fact rendering ----
+function numUnit(v) {
+  if ("kmh" in v) return { n: v.kmh, u: "km/h" };
+  if ("cm" in v) return { n: v.cm, u: "cm" };
+  if ("sunniness_pct" in v) return { n: v.sunniness_pct, u: "% sun" };
+  if ("temp_c" in v) return { n: v.temp_c, u: "°C" };
+  return { n: "", u: "" };
+}
+function shortRS(s) {  // long rain_snow phrase → short chip/word
+  if (s.startsWith("snow up high")) return "snow up high";
+  if (s.startsWith("snow across"))  return "snowing";
+  if (s.startsWith("rain across"))  return "raining";
+  if (s.startsWith("no precip"))    return "dry";
+  return s;
+}
+// One fact → {val, lab} for a "VALUE = descriptor" row. Same-band AM/PM collapse to one
+// descriptor with the two numbers slashed (e.g. "82/74% sun = sunny"), so rows stay short.
+function factValLab(f) {
+  if ("am" in f || "pm" in f) {
+    const a = f.am, p = f.pm;
+    if (typeof a === "string" || typeof p === "string") {
+      const A = a ? shortRS(a) : "", P = p ? shortRS(p) : "";
+      return { lab: (!a || !p) ? (A || P) : (A === P ? A : `${A} AM · ${P} PM`) };
+    }
+    if (a && p) {
+      const ua = numUnit(a), up = numUnit(p);
+      if (a.label === p.label) return { val: `${ua.n}/${up.n}${ua.u}`, lab: a.label };
+      return { lab: `${ua.n}${ua.u} ${a.label} AM · ${up.n}${up.u} ${p.label} PM` };
+    }
+    const v = a || p, uv = numUnit(v);
+    return { val: `${uv.n}${uv.u}`, lab: v.label };
+  }
+  if (f.factor === "recent_snow") return { val: `${f.cm}cm`, lab: f.label };
+  if (f.factor === "lifts")       return { lab: `${f.open} of ${f.total} lifts open` };
+  if (f.factor === "base_depth")  return { val: `${f.cm}cm`, lab: f.label };
+  if (f.factor === "ability")     return { lab: f.label.includes("resort") ? f.label : `resort ${f.label}` };
+  return { lab: f.label };  // size / run_length / price
+}
+function factRow(f) {
+  const { val, lab } = factValLab(f);
+  const eq = val ? `<span class="val">${val}</span><span class="eq">=</span>` : "";
+  return `<div class="frow"><span class="ico">${ICON[f.factor]}</span>${eq}<span class="lab">${lab}</span></div>`;
+}
+function chip(f) {  // compact headline chip — band word only (no AM/PM, minimal numbers)
+  let txt;
+  if ("am" in f || "pm" in f) {
+    const v = f.am ?? f.pm;
+    if (typeof v === "string") txt = shortRS(v);
+    else if (f.factor === "snow_amount") txt = `${v.cm}cm new snow`;
+    else txt = v.label;
+  } else if (f.factor === "recent_snow") txt = `${f.cm}cm recent snow`;
+  else if (f.factor === "lifts")         txt = `${f.pct}% lifts`;
+  else if (f.factor === "base_depth")    txt = `${f.cm}cm base`;
+  else txt = f.label;
+  return `<span class="chip"><span class="ico">${ICON[f.factor]}</span>${txt}</span>`;
+}
+
+function prettyDate(iso) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-AU",
+    { weekday:"long", day:"numeric", month:"short" });
+}
+
+function cardHtml(card, i) {
+  const rank = i + 1;
+  const headChips = card.facts.slice(0, 3).map(chip).join("");
+  const grid = card.facts.map(factRow).join("");
+  return `<div class="rcard rank${rank}">
+    <div class="rhead">
+      <div class="rank">${rank}</div>
+      <div class="rtitle">
+        <div class="top">
+          <span class="resort">${card.resort}</span>
+          <span class="rdate">${prettyDate(card.date)}</span>
+          ${rank === 1 ? `<span class="rwinner">Top pick</span>` : ""}
+        </div>
+        <div class="chips">${headChips}</div>
+      </div>
+      <div class="score" title="Score according to our ski-conditions model">
+        <div class="score-num">${Math.round(card.day_score * 100)}<span class="of">/100</span></div>
+        <div class="score-cap">our ski-conditions model score</div>
+      </div>
+      <div class="caret">⌄</div>
+    </div>
+    <div class="rbody">
+      <div class="why"><div class="why-label">Why ${card.resort} this day</div>${card.why}</div>
+      <div class="facts-label">The conditions</div>
+      <div class="facts">${grid}</div>
+    </div>
+  </div>`;
+}
+
+function renderResults() {
+  if (!prefs) { document.getElementById("results").innerHTML = ""; return; }
+  document.getElementById("results").innerHTML =
+    `<div class="section-title">Best resort for each of your selected days, ordered by score</div>` +
+    CARDS.map(cardHtml).join("");
+  document.querySelectorAll(".rhead").forEach(h =>
+    h.addEventListener("click", () => h.closest(".rcard").classList.toggle("open")));
+  document.querySelector(".rcard")?.classList.add("open");  // top pick expanded by default
+}
+
+// ---- Boot: switching to this tab auto-opens the wizard (no prefs yet) ----
+openWizard();
+</script>
+</body>
+</html>

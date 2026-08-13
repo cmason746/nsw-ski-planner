@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ski Planner — Overview mockup</title>
+<style>
+  :root {
+    --bg:        #e9f0fb;
+    --bg2:       #f4f8ff;
+    --card:      #ffffff;
+    --ink:       #14243a;
+    --ink-soft:  #566b83;
+    --ink-faint: #8ba0b8;
+    --line:      #e3ecf6;
+    --snow:      #2563eb;
+    --snow-bg:   #eaf2ff;
+    --rain:      #64748b;
+    --rain-bg:   #eef2f7;
+    --sun:       #e0940f;
+    --accent:    #2563eb;
+    --accent-ink:#ffffff;
+    --shadow:    0 1px 2px rgba(20,50,90,.05), 0 6px 18px rgba(20,50,90,.07);
+    --radius:    14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(180deg, var(--bg2), var(--bg));
+    background-attachment: fixed;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 22px 26px 60px; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .brand-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .brand { font-size: 46px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+  .brand .flake { color: var(--snow); }
+  .tagline { font-size: 14.5px; color: var(--ink-soft); font-weight: 500; }
+  .tabs {
+    display: inline-flex; background: #dde5ee; border-radius: 999px; padding: 3px;
+    margin-left: 28px;
+  }
+  .tab {
+    border: 0; background: transparent; cursor: pointer;
+    padding: 7px 16px; border-radius: 999px; font-size: 14px; font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .tab.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .tab.disabled { opacity: .5; cursor: not-allowed; }
+  .spacer { flex: 1; }
+  .prefs-btn {
+    border: 0; cursor: pointer;
+    background: linear-gradient(135deg, #2563eb, #38a5f0);
+    color: var(--accent-ink);
+    padding: 12px 22px; border-radius: 999px;
+    font-size: 14.5px; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(37,99,235,.32);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .prefs-btn:hover { filter: brightness(1.05); }
+
+  .daterow { display: flex; align-items: center; gap: 10px; margin: 2px 0 20px; }
+  .daterow .lead { color: var(--ink-soft); font-size: 13.5px; }
+  .datepick {
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+    background: var(--card); border: 1px solid #d3e0f0; border-radius: 999px;
+    padding: 8px 14px; font-size: 13.5px; font-weight: 700; color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  .datepick:hover { border-color: var(--accent); }
+  .datepick .cal { font-size: 14px; }
+  .datepick .caret { color: var(--ink-faint); font-size: 11px; }
+
+  /* ---- Resort section ---- */
+  .resort { margin-bottom: 26px; }
+  .resort-head {
+    display: flex; align-items: baseline; gap: 12px 18px; flex-wrap: wrap;
+    padding: 0 2px 10px;
+  }
+  .resort-name { font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+  .resort-meta { display: flex; gap: 8px 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .chip .k { color: var(--ink); font-weight: 700; }
+  .dot { color: var(--ink-faint); }
+
+  /* ---- Day-card row ---- */
+  .day-row {
+    display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 14px;
+    align-items: flex-start;      /* cards size to their own content, not the tallest */
+    scroll-snap-type: x proximity;
+  }
+  .day-row::-webkit-scrollbar { height: 8px; }
+  .day-row::-webkit-scrollbar-thumb { background: #cfd8e3; border-radius: 8px; }
+
+  .card {
+    flex: 0 0 350px; scroll-snap-align: start;
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card-date {
+    padding: 9px 12px; font-weight: 800; font-size: 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-date .dow { color: var(--ink); }
+  .card-date .num { color: var(--ink-faint); font-weight: 700; }
+
+  /* recent snow — per-day line above the AM/PM table */
+  .recent {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 12px; font-size: 12.5px;
+    background: var(--snow-bg); color: #204a9c;
+    border-bottom: 1px solid var(--line);
+  }
+  .recent .ico { font-size: 14px; }
+  .recent b { font-weight: 800; }
+
+  /* AM/PM as a 2-col grid so every factor slot shares one row → rows line up
+     evenly across the two columns even when a label wraps to 2–3 lines. */
+  .windows { display: grid; grid-template-columns: 1fr 1fr; padding: 11px 0 6px; }
+  .wcell { padding: 0 13px; }
+  .wcell.pm { border-left: 1px solid var(--line); }
+  .wcell.hidden { display: none; }
+  .wlabel {
+    font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+    color: var(--ink-faint); text-transform: uppercase; padding-bottom: 8px;
+  }
+  .rscell { padding-bottom: 11px; }
+  .fcell  { padding-bottom: 9px; }
+
+  /* rain_snow header per window */
+  .rs { display: flex; gap: 7px; align-items: flex-start; }
+  .rs .ico { font-size: 17px; line-height: 1.1; }
+  .rs .txt { font-size: 12px; font-weight: 700; line-height: 1.25; }
+  .rs.snow .txt { color: var(--snow); }
+  .rs.mix  .txt { color: #7a5cc0; }
+  .rs.rain .txt { color: var(--rain); }
+  .rs.dry  .txt { color: var(--sun); }
+
+  .factor { display: flex; gap: 6px; align-items: baseline; font-size: 12.5px; }
+  .factor.muted { opacity: .45; }
+  .factor .ico { font-size: 13px; width: 15px; text-align: center; flex: 0 0 auto; }
+  .factor .val { font-weight: 800; white-space: nowrap; }
+  .factor .eq { color: var(--ink-faint); font-weight: 700; flex: 0 0 auto; }
+  .factor .lab { color: var(--ink-soft); line-height: 1.25; }
+  .factor.hidden { display: none; }
+
+  .expand {
+    margin-top: 9px; border: 0; background: transparent; cursor: pointer;
+    color: var(--accent); font-weight: 800; font-size: 11.5px; padding: 2px 0;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .expand:hover { text-decoration: underline; }
+
+  .note { font-size: 12px; color: var(--ink-soft); margin-top: 26px; padding: 14px 16px;
+          background: #fff; border-radius: 12px; box-shadow: var(--shadow); line-height: 1.5; }
+  .note b { color: var(--ink); }
+  .scroll-hint { font-size: 11.5px; color: var(--ink-faint); margin: -4px 2px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand-wrap">
+      <div class="brand"><span class="flake">❄</span> Snowbound</div>
+      <div class="tagline">Your guide to NSW's ski resorts</div>
+    </div>
+    <div class="tabs">
+      <button class="tab active">Conditions Overview</button>
+      <button class="tab disabled" title="Set preferences first">Resort Recommendation</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="prefs-btn">🎯 What ski factors matter to you?</button>
+  </div>
+
+  <div class="daterow">
+    <span class="lead">Showing conditions for</span>
+    <button class="datepick"><span class="cal">📅</span> <span>Thu 13 – Mon 17 Aug</span> <span class="caret">▾</span></button>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="note">
+    <b>Mockup notes.</b> Emoji stand in for the real icon set (TBD). Data here is fake but
+    shaped exactly like <b>GET /conditions</b>. Each card: <b>recent snow</b> on its own line
+    up top (per-day), then <b>AM / PM</b> columns — each led by <b>rain/snow</b>, then the top 2
+    factors, with <b>“more”</b> revealing the rest in that window's chosen order. Try the
+    horizontal scroll on each resort, and the expand on a snow day vs a dry day (snow days have
+    more to reveal). Colours/typography are a first pass — all up for iteration.
+  </div>
+
+</div>
+
+<script>
+// ---- Mock data: shaped exactly like format_overview() output ----
+const ICON = {
+  snow: "🌨️", mix: "🌦️", rain: "🌧️", dry: "☀️",
+  wind: "💨", precip: "💧", quality: "❄️", amount: "🏔️",
+  sun_sunny: "☀️", sun_partly: "⛅", sun_cloudy: "☁️",
+};
+
+function sunIcon(pct){ return pct > 70 ? ICON.sun_sunny : pct >= 40 ? ICON.sun_partly : ICON.sun_cloudy; }
+
+// factor render order per window type (Charlotte's decisions)
+const ORDER = {
+  snow: ["snow_amount","snow_quality","wind","sunniness","precip_probability"],
+  mix:  ["snow_amount","wind","sunniness","snow_quality","precip_probability"],
+  dry:  ["sunniness","wind","precip_probability"],
+  rain: ["precip_probability","wind","sunniness"],
+};
+
+// One order per DAY (not per window): the "snowiest" of the two windows wins, so
+// both columns share an order and rows line up by factor. snow > mix > rain > dry.
+const TYPE_RANK = { snow: 4, mix: 3, rain: 2, dry: 1 };
+function dayType(am, pm) { return TYPE_RANK[am.type] >= TYPE_RANK[pm.type] ? am.type : pm.type; }
+
+function W(type, o){ return Object.assign({ type }, o); }
+
+const DATA = {
+  perisher: {
+    name: "Perisher",
+    lifts: { open: 38, total: 45, pct: 84, label: "38 of 45 open" },
+    base_depth: { cm: 96, label: "great base depth and excellent coverage" },
+    character: ["largest ski resort in Australia","medium-length runs","suited to all abilities"],
+    elevations: { low: 1605, high: 2042 },
+    days: [
+      { date:"Thu 13", recent_snow:{cm:22,label:"a bit of recent snow"},
+        am:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:9,label:"decent"},snow_quality:{temp_c:-5,label:"dry & light snow"},wind:{kmh:28,label:"fine winds"},sunniness:{sunniness_pct:20,label:"cloudy"},precip_probability:{pct:85,label:"very likely"}}),
+        pm:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:6,label:"decent"},snow_quality:{temp_c:-4,label:"dry & light snow"},wind:{kmh:34,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:25,label:"cloudy"},precip_probability:{pct:75,label:"likely"}}) },
+      { date:"Fri 14", recent_snow:{cm:41,label:"a lot of fresh snow"},
+        am:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:14,label:"dump"},snow_quality:{temp_c:-6,label:"dry & light snow"},wind:{kmh:22,label:"fine winds"},sunniness:{sunniness_pct:15,label:"cloudy"},precip_probability:{pct:90,label:"very likely"}}),
+        pm:W("mix",{rain_snow:"snow up high, rain below ~1700 m",snow_amount:{cm:4,label:"decent",note:"rain below ~1700 m"},snow_quality:{temp_c:-1,label:"good snow"},wind:{kmh:30,label:"fine winds"},sunniness:{sunniness_pct:35,label:"cloudy"},precip_probability:{pct:70,label:"likely"}}) },
+      { date:"Sat 15", recent_snow:{cm:18,label:"a bit of recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:18,label:"fine winds"},sunniness:{sunniness_pct:82,label:"sunny"},precip_probability:{pct:10,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:24,label:"fine winds"},sunniness:{sunniness_pct:74,label:"sunny"},precip_probability:{pct:15,label:"unlikely"}}) },
+      { date:"Sun 16", recent_snow:{cm:12,label:"a bit of recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:40,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:55,label:"partly cloudy"},precip_probability:{pct:20,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:52,label:"very windy, lifts likely to be on hold"},sunniness:{sunniness_pct:48,label:"partly cloudy"},precip_probability:{pct:25,label:"unlikely"}}) },
+      { date:"Mon 17", recent_snow:{cm:6,label:"not much recent snow"},
+        am:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:30,label:"fine winds"},sunniness:{sunniness_pct:22,label:"cloudy"},precip_probability:{pct:80,label:"very likely"}}),
+        pm:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:26,label:"fine winds"},sunniness:{sunniness_pct:30,label:"cloudy"},precip_probability:{pct:65,label:"likely"}}) },
+    ],
+  },
+  thredbo: {
+    name: "Thredbo",
+    lifts: { open: 13, total: 15, pct: 87, label: "13 of 15 open" },
+    base_depth: { cm: 88, label: "good base depth and decent coverage" },
+    character: ["large ski resort","long runs","suited to all abilities"],
+    elevations: { low: 1365, high: 2037 },
+    days: [
+      { date:"Thu 13", recent_snow:{cm:19,label:"a bit of recent snow"},
+        am:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:8,label:"decent"},snow_quality:{temp_c:-4,label:"dry & light snow"},wind:{kmh:26,label:"fine winds"},sunniness:{sunniness_pct:24,label:"cloudy"},precip_probability:{pct:82,label:"very likely"}}),
+        pm:W("mix",{rain_snow:"snow up high, rain below ~1500 m",snow_amount:{cm:5,label:"decent",note:"rain below ~1500 m"},snow_quality:{temp_c:-2,label:"good snow"},wind:{kmh:33,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:30,label:"cloudy"},precip_probability:{pct:72,label:"likely"}}) },
+      { date:"Fri 14", recent_snow:{cm:36,label:"a bit of recent snow"},
+        am:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:12,label:"dump"},snow_quality:{temp_c:-5,label:"dry & light snow"},wind:{kmh:20,label:"fine winds"},sunniness:{sunniness_pct:18,label:"cloudy"},precip_probability:{pct:88,label:"very likely"}}),
+        pm:W("mix",{rain_snow:"snow up high, rain below ~1600 m",snow_amount:{cm:3,label:"decent",note:"rain below ~1600 m"},snow_quality:{temp_c:-1,label:"good snow"},wind:{kmh:29,label:"fine winds"},sunniness:{sunniness_pct:33,label:"cloudy"},precip_probability:{pct:68,label:"likely"}}) },
+      { date:"Sat 15", recent_snow:{cm:15,label:"a bit of recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:16,label:"fine winds"},sunniness:{sunniness_pct:80,label:"sunny"},precip_probability:{pct:8,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:22,label:"fine winds"},sunniness:{sunniness_pct:71,label:"sunny"},precip_probability:{pct:12,label:"unlikely"}}) },
+      { date:"Sun 16", recent_snow:{cm:10,label:"a bit of recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:38,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:60,label:"partly cloudy"},precip_probability:{pct:18,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:47,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:52,label:"partly cloudy"},precip_probability:{pct:22,label:"unlikely"}}) },
+      { date:"Mon 17", recent_snow:{cm:5,label:"not much recent snow"},
+        am:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:28,label:"fine winds"},sunniness:{sunniness_pct:26,label:"cloudy"},precip_probability:{pct:78,label:"likely"}}),
+        pm:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:24,label:"fine winds"},sunniness:{sunniness_pct:34,label:"cloudy"},precip_probability:{pct:60,label:"likely"}}) },
+    ],
+  },
+  selwyn: {
+    name: "Selwyn",
+    lifts: { open: 6, total: 7, pct: 86, label: "6 of 7 open" },
+    base_depth: { cm: 52, label: "ok base depth and coverage" },
+    character: ["small ski resort","short runs","beginner-friendly resort"],
+    elevations: { low: 1492, high: 1614 },
+    days: [
+      { date:"Thu 13", recent_snow:{cm:14,label:"a bit of recent snow"},
+        am:W("mix",{rain_snow:"snow up high, rain below ~1550 m",snow_amount:{cm:4,label:"decent",note:"rain below ~1550 m"},snow_quality:{temp_c:-1,label:"good snow"},wind:{kmh:24,label:"fine winds"},sunniness:{sunniness_pct:28,label:"cloudy"},precip_probability:{pct:76,label:"likely"}}),
+        pm:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:27,label:"fine winds"},sunniness:{sunniness_pct:30,label:"cloudy"},precip_probability:{pct:70,label:"likely"}}) },
+      { date:"Fri 14", recent_snow:{cm:20,label:"a bit of recent snow"},
+        am:W("snow",{rain_snow:"snow across whole resort",snow_amount:{cm:7,label:"decent"},snow_quality:{temp_c:-3,label:"dry & light snow"},wind:{kmh:19,label:"fine winds"},sunniness:{sunniness_pct:20,label:"cloudy"},precip_probability:{pct:84,label:"very likely"}}),
+        pm:W("mix",{rain_snow:"snow up high, rain below ~1500 m",snow_amount:{cm:2,label:"dusting",note:"rain below ~1500 m"},snow_quality:{temp_c:-1,label:"good snow"},wind:{kmh:26,label:"fine winds"},sunniness:{sunniness_pct:32,label:"cloudy"},precip_probability:{pct:66,label:"likely"}}) },
+      { date:"Sat 15", recent_snow:{cm:9,label:"not much recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:15,label:"fine winds"},sunniness:{sunniness_pct:78,label:"sunny"},precip_probability:{pct:10,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:20,label:"fine winds"},sunniness:{sunniness_pct:69,label:"partly cloudy"},precip_probability:{pct:14,label:"unlikely"}}) },
+      { date:"Sun 16", recent_snow:{cm:7,label:"not much recent snow"},
+        am:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:34,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:58,label:"partly cloudy"},precip_probability:{pct:16,label:"unlikely"}}),
+        pm:W("dry",{rain_snow:"no precipitation forecast",wind:{kmh:42,label:"windy, some lifts may be on hold"},sunniness:{sunniness_pct:50,label:"partly cloudy"},precip_probability:{pct:20,label:"unlikely"}}) },
+      { date:"Mon 17", recent_snow:{cm:3,label:"not much recent snow"},
+        am:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:25,label:"fine winds"},sunniness:{sunniness_pct:28,label:"cloudy"},precip_probability:{pct:74,label:"likely"}}),
+        pm:W("rain",{rain_snow:"rain across whole resort",wind:{kmh:22,label:"fine winds"},sunniness:{sunniness_pct:36,label:"cloudy"},precip_probability:{pct:58,label:"maybe"}}) },
+    ],
+  },
+};
+
+// snow_amount phrasing makes clear it's the window's total (AM/PM)
+const AMOUNT_PHRASE = {
+  dusting: side => `dusting of snow during the ${side}`,
+  decent:  side => `decent ${side} snow total`,
+  dump:    side => `snow dump during the ${side}`,
+};
+
+// ---- One factor → {icon, value, label} ----
+function factorParts(key, win, side) {
+  switch (key) {
+    case "snow_amount": {
+      const a = win.snow_amount;
+      const phrase = (AMOUNT_PHRASE[a.label] || (() => a.label))(side);
+      return { ico: ICON.amount, val: a.cm + "cm", lab: phrase + (a.note ? " · " + a.note : "") };
+    }
+    case "snow_quality":
+      return { ico: ICON.quality, val: win.snow_quality.temp_c + "°C", lab: win.snow_quality.label };
+    case "wind":
+      return { ico: ICON.wind, val: win.wind.kmh + "km/h", lab: win.wind.label };
+    case "sunniness":
+      return { ico: sunIcon(win.sunniness.sunniness_pct), val: win.sunniness.sunniness_pct + "% sun", lab: win.sunniness.label };
+    case "precip_probability":
+      return { ico: ICON.precip, val: win.precip_probability.pct + "%", lab: win.precip_probability.label + " chance of precipitation" };
+  }
+  return { ico: "", val: "", lab: "" };
+}
+
+// ---- Grid cells (AM + PM share each row so slots line up) ----
+// Both columns use the day order, so a window may be asked for a factor it lacks
+// (snow figures on a non-snowing half) — filled as "no new snow" / "–" to keep rows level.
+function factorCell(key, win, side, hidden) {
+  const cls = `wcell ${side.toLowerCase()} fcell${hidden ? " hidden" : ""}`;
+  let parts;
+  if (win[key] !== undefined) {
+    parts = factorParts(key, win, side);
+  } else if (key === "snow_amount") {
+    parts = { ico: ICON.amount, val: "0cm", lab: "no new snow", muted: true };
+  } else if (key === "snow_quality") {
+    parts = { ico: ICON.quality, val: "–", lab: "", muted: true };
+  } else {
+    return `<div class="${cls}" data-extra="${hidden}"></div>`;
+  }
+  const eq = parts.lab ? `<span class="eq">=</span>` : "";
+  return `<div class="${cls}" data-extra="${hidden}">
+    <div class="factor${parts.muted ? " muted" : ""}"><span class="ico">${parts.ico}</span><span class="val">${parts.val}</span>${eq}<span class="lab">${parts.lab}</span></div>
+  </div>`;
+}
+
+function rsCell(win, side) {
+  return `<div class="wcell ${side.toLowerCase()} rscell">
+    <div class="rs ${win.type}"><span class="ico">${ICON[win.type]}</span><span class="txt">${win.rain_snow}</span></div>
+  </div>`;
+}
+
+function windowsGrid(am, pm) {
+  const order = ORDER[dayType(am, pm)];   // one order for the whole day, both columns
+  let cells = `<div class="wcell am wlabel">AM</div><div class="wcell pm wlabel">PM</div>`;
+  cells += rsCell(am, "AM") + rsCell(pm, "PM");
+  order.forEach((key, i) => {
+    const hidden = i >= 2;
+    cells += factorCell(key, am, "AM", hidden) + factorCell(key, pm, "PM", hidden);
+  });
+  return `<div class="windows">${cells}</div>`;
+}
+
+function cardHtml(day) {
+  const order = ORDER[dayType(day.am, day.pm)];
+  const extra = Math.max(order.length - 2, 0);   // extra factor rows beyond the top 2
+  const [dow, num] = day.date.split(" ");
+  return `<div class="card">
+    <div class="card-date"><span class="dow">${dow}</span><span class="num">${num}</span></div>
+    <div class="recent"><span class="ico">🌨️</span><span><b>${day.recent_snow.cm}cm</b> – ${day.recent_snow.label} in the past 2 days</span></div>
+    ${windowsGrid(day.am, day.pm)}
+    ${extra > 0 ? `<button class="expand" data-n="${extra}" style="align-self:center;margin:2px 0 12px;">+ more (${extra})</button>` : ""}
+  </div>`;
+}
+
+function resortHtml(key, r) {
+  const meta = `
+    <span class="chip"><span class="k">${r.lifts.pct}%</span> lifts (${r.lifts.label})</span>
+    <span class="dot">·</span>
+    <span class="chip"><span class="k">${r.base_depth.cm}cm</span> base</span>
+    <span class="dot">·</span>
+    <span class="chip">elevation <span class="k">${r.elevations.low}–${r.elevations.high} m</span></span>
+    <span class="dot">·</span>
+    <span class="chip">${r.character[0]}</span>
+    <span class="dot">·</span>
+    <span class="chip">${r.character[1]}</span>`;
+  return `<div class="resort">
+    <div class="resort-head">
+      <span class="resort-name">${r.name}</span>
+      <span class="resort-meta">${meta}</span>
+    </div>
+    <div class="day-row">${r.days.map(cardHtml).join("")}</div>
+  </div>`;
+}
+
+document.getElementById("app").innerHTML =
+  Object.entries(DATA).map(([k, r]) => resortHtml(k, r)).join("");
+
+// expand / collapse toggles the extra grid rows (both AM + PM cells together)
+document.querySelectorAll(".expand").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const card = btn.closest(".card");
+    const extras = card.querySelectorAll('.wcell[data-extra="true"]');
+    const open = btn.dataset.open === "1";
+    extras.forEach(e => e.classList.toggle("hidden", open));
+    btn.dataset.open = open ? "0" : "1";
+    btn.textContent = open ? `+ more (${btn.dataset.n})` : "− less";
+  });
+});
+</script>
+</body>
+</html>
