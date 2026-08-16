@@ -1,0 +1,55 @@
+.picker {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px 16px 16px;
+  user-select: none;
+}
+.monthLabel {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 12px;
+  text-align: center;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.dow {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  text-align: center;
+  padding-bottom: 4px;
+}
+.empty { aspect-ratio: 1; }
+
+.day {
+  aspect-ratio: 1;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+}
+.day:hover:not(.disabled):not(.selected) { background: var(--snow-bg); }
+
+.disabled {
+  color: var(--ink-faint);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* mid-range days get a soft fill; the two ends get the strong accent */
+.selected { background: var(--snow-bg); color: #1c4bb0; border-radius: 0; }
+.start { background: var(--accent); color: var(--accent-ink); border-radius: 9px 0 0 9px; }
+.end { background: var(--accent); color: var(--accent-ink); border-radius: 0 9px 9px 0; }
+.start.end { border-radius: 9px; }

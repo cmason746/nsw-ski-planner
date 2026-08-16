@@ -1,0 +1,33 @@
+.resort { margin-bottom: 26px; }
+
+.resortHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+  padding: 0 2px 10px;
+}
+.resortName { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+.resortMeta {
+  display: flex;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.chip .k { color: var(--ink); font-weight: 700; }
+.dot { color: var(--ink-faint); }
+
+/* Day-card row — horizontal, scrolls sideways when there are many days. Cards align
+   to the top so each sizes to its own content rather than the tallest in the row. */
+.dayRow {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 2px 14px;
+  align-items: flex-start;
+  scroll-snap-type: x proximity;
+}
+.dayRow::-webkit-scrollbar { height: 8px; }
+.dayRow::-webkit-scrollbar-thumb { background: #cfd8e3; border-radius: 8px; }

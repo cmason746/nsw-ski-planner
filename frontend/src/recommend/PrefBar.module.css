@@ -1,0 +1,33 @@
+.prefbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+.lead { font-weight: 800; font-size: 14px; }
+.pchips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.pchip {
+  background: var(--snow-bg);
+  color: #1c4bb0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.editBtn {
+  border: 1px solid #cdd9e8;
+  background: #fff;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+.editBtn:hover { border-color: var(--accent); color: var(--accent); }

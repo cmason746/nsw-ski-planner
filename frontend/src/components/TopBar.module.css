@@ -1,0 +1,74 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.brandWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.brand {
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.flake {
+  color: var(--snow);
+}
+.tagline {
+  font-size: 14.5px;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.tabs {
+  display: inline-flex;
+  background: #dde5ee;
+  border-radius: 999px;
+  padding: 3px;
+  margin-left: 28px;
+}
+.tab {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.tab.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.prefsBtn {
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #38a5f0);
+  color: var(--accent-ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.32);
+}
+.prefsBtn:hover {
+  filter: brightness(1.05);
+}

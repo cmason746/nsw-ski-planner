@@ -1,0 +1,102 @@
+.card {
+  flex: 0 0 350px;
+  scroll-snap-align: start;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardDate {
+  padding: 9px 12px;
+  font-weight: 800;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dow { color: var(--ink); }
+.num { color: var(--ink-faint); font-weight: 700; }
+
+/* recent snow — per-day line above the AM/PM table */
+.recent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--snow-bg);
+  color: #204a9c;
+  border-bottom: 1px solid var(--line);
+}
+.recent .ico { display: inline-flex; align-items: center; }
+.recent b { font-weight: 800; }
+
+/* AM/PM as a 2-col grid so every factor slot shares one row → rows line up
+   evenly across the two columns even when a label wraps to 2–3 lines. */
+.windows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 11px 0 6px;
+}
+.wcell { padding: 0 13px; }
+.wcell.pm { border-left: 1px solid var(--line); }
+.wlabel {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  padding-bottom: 8px;
+}
+.rscell { padding-bottom: 11px; }
+.fcell { padding-bottom: 9px; }
+.hidden { display: none; }
+
+/* rain_snow header per window */
+.rs { display: flex; gap: 7px; align-items: flex-start; }
+.rs .ico { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.rs .txt { font-size: 12px; font-weight: 700; line-height: 1.25; }
+.rs.snow .txt { color: var(--snow); }
+.rs.mix .txt { color: #7a5cc0; }
+.rs.rain .txt { color: var(--rain); }
+.rs.dry .txt { color: var(--sun); }
+
+.factor {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12.5px;
+}
+.factor.muted { opacity: 0.45; }
+.factor .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.factor .val { font-weight: 800; white-space: nowrap; }
+.factor .eq { color: var(--ink-faint); font-weight: 700; flex: 0 0 auto; }
+.factor .lab { color: var(--ink-soft); line-height: 1.25; }
+
+.expand {
+  align-self: center;
+  margin: 2px 0 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 11.5px;
+  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.expand:hover { text-decoration: underline; }
