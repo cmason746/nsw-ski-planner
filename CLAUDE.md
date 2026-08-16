@@ -96,17 +96,9 @@ npm run lint     # oxlint
 
 ## TODO (running list — update each session)
 
-The app is complete and deployed. Nothing outstanding. Historical build items
-are in git history; the frontend build breakdown lives in
+The app is complete and deployed. Nothing outstanding, no work planned.
+Historical build items are in git history; the frontend build breakdown lives in
 [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md).
-
-Possible future enhancements (none planned):
-
-- [ ] Move to S3 + CloudFront if HTTPS / a custom domain / edge caching is ever
-      wanted (a custom domain would cost ~$12/yr to register — deliberately
-      skipped for now).
-- [ ] Automate the frontend deploy (build → `s3 sync`) rather than running it by
-      hand.
 
 _State (as of 2026-08-16):_
 - **Whole app live on AWS.** Backend (Lambdas, DynamoDB, HTTP API, EventBridge
