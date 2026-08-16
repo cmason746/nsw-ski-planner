@@ -55,7 +55,9 @@ def is_precipitating(precip_mm: float, precip_prob: float) -> bool:
     True when precip is likely and meaningful — the gate for the whole snow story.
     precip_mm is summed over the window; precip_prob is the max (both from extract_windows).
     """
-    return precip_prob > 40 and precip_mm > 1
+    # >= 40 matches the "maybe" probability band boundary (see _precip_prob_label) so the
+    # gate and the displayed wording agree at exactly 40%.
+    return precip_prob >= 40 and precip_mm > 1
 
 
 def precip_type(freezing_level_m: float, elevation_low: float, elevation_high: float) -> str:

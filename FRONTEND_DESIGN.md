@@ -32,6 +32,53 @@ back and forth. These are in-app view toggles, **not** browser tabs.
 > ARCHITECTURE.md: the recommendation now lives in its own view, so the overview
 > stays intact while you read the recommendation.
 
+## Component architecture (React build)
+
+The build is a **mockup → React translation** (the two files in `mockups/` are the
+visual + logic reference). Agreed structure:
+
+**Styling: CSS Modules** — each component has its own `*.module.css` (scoped class
+names, no global collisions); the shared palette/shape tokens live once in
+`src/lib/tokens.css` as CSS variables. No Tailwind, no global stylesheet sprawl.
+
+**State model:** all shared state lives in `App.jsx` and flows down as props — no
+Redux, no router (the app is two in-app views). Both views stay **mounted**; the
+inactive one is `hidden`, so scroll position / expanded cards survive tab switches.
+State: `activeTab`, `conditions` (GET /conditions), `dateRange`, `prefs` (null
+until the wizard finishes), `recommendation` (POST /recommend). Data state is added
+as each wiring step lands, not all up front.
+
+```
+src/
+  main.jsx
+  App.jsx                    shell: top bar, tab switch, owns shared state
+  lib/
+    tokens.css               design tokens (colours, radius, shadow)
+    icons.js                 ICON map (emoji now → real set later; one swap point)
+    overviewFormat.js        ORDER, dayType, factorParts, sunIcon (overview logic)
+    recommendFormat.js       numUnit, shortRS, factValLab, chip (recommend logic)
+    dates.js                 prettyDate + date-range helpers
+  api/client.js              getConditions(), postRecommend(prefs)
+  components/
+    TopBar.jsx               brand + tagline + tab pill + prefs button
+    DatePicker.jsx           the date pill (later: real ≤10-day calendar)
+  overview/
+    OverviewView.jsx         conditions → list of ResortSection
+    ResortSection.jsx        resort meta chips + horizontal day-card row
+    DayCard.jsx              date, recent-snow line, AM/PM grid, expand
+    FactorCell.jsx           one factor cell inside the grid
+  recommend/
+    RecommendationView.jsx   pref bar + result cards
+    PrefBar.jsx              "Your picks" chips + ✎ Edit
+    ResultCard.jsx           rank + resort + chips + score, expand → why + facts
+    PreferencesWizard.jsx    one-question-at-a-time modal + beginner branching
+```
+
+Build order (per CLAUDE.md TODO): shell ✓ → CORS check → Overview wired to
+`GET /conditions` → wizard + Recommendation wired to `POST /recommend` → date
+picker → icon pass → host. Files above are created as their step lands; the shell
+ships `App`, `TopBar`, `tokens.css`, and placeholder Overview/Recommendation views.
+
 ## Overview view
 
 Three resort **sections stacked vertically**, one per resort (Perisher, Thredbo,
@@ -88,8 +135,8 @@ Card layout, top to bottom:
    |---|---|
    | **snow** (all snow) | snow_amount · snow_quality · wind · sunniness · precip_probability |
    | **mix** (snow up, rain below) | snow_amount · wind · sunniness · snow_quality · precip_probability |
-   | **dry** (sunny) | sunniness · wind · precip_probability |
-   | **rain** (all rain) | precip_probability · wind · sunniness |
+   | **dry** (sunny) | sunniness · wind · temperature |
+   | **rain** (all rain) | precip_probability · wind · temperature · sunniness |
 
    **Which order a day uses — "snowiest wins":** AM and PM can be different conditions;
    the day picks a single order from the **higher-priority** of the two windows, ranked
@@ -106,9 +153,17 @@ Card layout, top to bottom:
    - **`sunniness` is present on every window type** — including snow/mix. The scorer
      drops sunniness when snowing (so powder days aren't penalised for cloud), but the
      overview shows it as honest info. `snow_amount`/`snow_quality` are real only on
-     snow/mix (filled as above elsewhere). `wind` and `precip_probability` are always present.
+     snow/mix (filled as above elsewhere). `wind` is always present; `precip_probability` is
+     present only on precipitating windows (snow/mix/rain) — a **dry** window omits it (the
+     backend doesn't emit it), since a chance-of-precip figure contradicts "no precipitation
+     forecast" when the forecast amount is ~0.
+   - **Temperature is always shown, but framed by window type.** On **snow/mix** windows the
+     mid-mountain temperature is surfaced *as* `snow_quality` (temp + quality words). On
+     **dry/rain** windows there's no snow to grade, so a plain `temperature` factor (🌡️) is
+     shown instead — same mid-mountain window-average temp, banded **cold** (<0°C) ·
+     **pleasant** (0–2°C) · **warm** (3–6°C) · **hot** (>6°C), with no snow-quality wording.
    - Expand-count: a day shows its top 2 rows; the rest expand. snow/mix days have 5
-     rows (→ 3 more), dry/rain days have 3 (→ 1 more).
+     rows (→ 3 more), rain days have 4 (→ 2 more), dry days have 3 (→ 1 more).
 
 - **Driven by the window `type` field** (`"dry" | "snow" | "mix" | "rain"`, emitted per
   AM/PM window by `GET /conditions`). The frontend derives the **day** order from the two
@@ -191,7 +246,7 @@ like `POST /recommend` (each card carries `facts` in the overview's band words, 
     user never has to flick back to the Overview. (Answers the "factors again vs just the
     paragraph?" question.)
 - **Card copy** mirrors the Overview vocabulary: same-band AM/PM collapse to one row
-  (`82/74% sun = sunny`); "recent snow"/"new snow" keep the word "snow"; lifts read
+  (`82, 74% sun = sunny` — AM, PM comma-separated, not slashed); "recent snow"/"new snow" keep the word "snow"; lifts read
   "38 of 45 lifts open". The runner-up `contrast` is currently woven into the prose only
   (no separate visual call-out — may revisit).
 - Lives in its own view; flick back to Overview any time (state preserved).
@@ -227,6 +282,13 @@ Everything below is a **first pass, open to iteration** — but it's what the mo
 **Resort section:** name + a single meta line of chips —
 `84% lifts (38 of 45 open) · 96cm base · elevation 1605–2042 m · <size> · <run length>`.
 Then the horizontal day-card row.
+
+- **Missing scraped data → chip omitted.** Lift and base-depth data are scraped from
+  OnTheSnow and can be genuinely absent (e.g. Selwyn's open-lift count). When the API
+  returns a null for lifts (`pct: null`) or base depth (`cm: null`), the chip is **left out
+  of the meta line entirely** (not shown as `–`, which reads like "zero open"). This matches
+  the recommendation view, which already drops N/A factors. The backend N/A's that factor
+  from scoring too, so the recommendation never invents or zeroes a value it doesn't have.
 
 **Day-card:** ≈**350px wide** (deliberately fat — keeps long weather descriptors intact;
 fine if only ~3 fit before horizontal scroll, since users usually look at 1–2 days).

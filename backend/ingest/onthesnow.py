@@ -50,16 +50,25 @@ def fetch_resort_snapshot(resort_key: str) -> dict:
 
     full_resort = _extract_full_resort(html, resort_key)
 
+    # Lift counts and base depth are sometimes only partially reported by OnTheSnow
+    # (e.g. Selwyn: total lifts known, open count null). These are genuine data gaps,
+    # not structural breaks (_extract_full_resort already guards the page shape), so we
+    # keep whatever's present and pass the rest through as None — downstream treats a
+    # None field as N/A rather than failing the whole ingest.
     lifts = full_resort.get("lifts") or {}
     lifts_open = lifts.get("open")
     lifts_total = lifts.get("total")
     if lifts_open is None or lifts_total is None:
-        raise ValueError(f"{resort_key}: lift counts missing from OnTheSnow data")
+        print(f"{resort_key}: lift counts partially missing (open={lifts_open}, total={lifts_total})")
+
+    base_depth_cm = _pick_depth(full_resort.get("depths") or {})
+    if base_depth_cm is None:
+        print(f"{resort_key}: base depth not reported in any elevation band")
 
     return {
         "lifts_open": lifts_open,
         "lifts_total": lifts_total,
-        "base_depth_cm": _pick_depth(full_resort.get("depths") or {}, resort_key),
+        "base_depth_cm": base_depth_cm,
     }
 
 
@@ -76,15 +85,27 @@ def _extract_full_resort(html: str, resort_key: str) -> dict:
         raise ValueError(f"{resort_key}: fullResort missing from __NEXT_DATA__ — shape changed")
 
 
-def _pick_depth(depths: dict, resort_key: str) -> float:
-    """First reported depth (cm) in base → middle → summit order."""
+def _pick_depth(depths: dict):
+    """First reported depth (cm) in base → middle → summit order, or None if none."""
     for band in _DEPTH_PREFERENCE:
         value = depths.get(band)
         if value is not None:
             return value
-    raise ValueError(f"{resort_key}: no base depth reported in any elevation band")
+    return None  # no band reported — caller treats base depth as unavailable
 
 
 def fetch_all_snapshots() -> dict:
-    """Fetch snapshots for all three resorts. Returns { resort_key: snapshot_dict }."""
-    return {key: fetch_resort_snapshot(key) for key in RESORT_URLS}
+    """
+    Fetch snapshots for all three resorts. Returns { resort_key: snapshot_dict }.
+    Per-resort resilient: a genuine fetch/parse failure on one resort is logged and
+    skipped (that resort is simply absent from the result) rather than aborting the
+    whole ingest — one flaky source can't freeze the entire cache. The handler treats
+    an absent resort the same as missing fields (all scraped values → None).
+    """
+    snapshots = {}
+    for key in RESORT_URLS:
+        try:
+            snapshots[key] = fetch_resort_snapshot(key)
+        except Exception as e:
+            print(f"{key}: snapshot fetch failed ({type(e).__name__}: {e})")
+    return snapshots

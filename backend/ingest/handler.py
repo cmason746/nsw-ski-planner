@@ -30,15 +30,18 @@ def lambda_handler(event, context):
             elevation_mid=resort["elevation_mid"],
         )
         windows = extract_windows(forecast_raw["hourly"])
-        snapshot = snapshots[resort_key]
+        # A resort may be absent (fetch failed) or carry None fields (data gap) — either
+        # way the scraped values default to None, stored as NULL, and treated as N/A
+        # downstream. Weather still refreshes regardless of the OnTheSnow scrape.
+        snapshot = snapshots.get(resort_key) or {}
 
-        # 3. Write to DynamoDB — floats must be Decimal for boto3
+        # 3. Write to DynamoDB — floats must be Decimal for boto3 (None → NULL, fine)
         item = {
             "resort": resort_key,
             "forecast_windows": windows,
-            "lifts_open": snapshot["lifts_open"],
-            "lifts_total": snapshot["lifts_total"],
-            "base_depth_cm": snapshot["base_depth_cm"],
+            "lifts_open": snapshot.get("lifts_open"),
+            "lifts_total": snapshot.get("lifts_total"),
+            "base_depth_cm": snapshot.get("base_depth_cm"),
         }
         item = json.loads(json.dumps(item), parse_float=Decimal)
         table.put_item(Item=item)

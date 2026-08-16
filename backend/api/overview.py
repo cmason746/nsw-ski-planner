@@ -18,6 +18,7 @@ the scorer which drops sunniness when snowing. Frontend branches on the window
 
 from shared.resorts import RESORTS, SIZE_LABELS, LENGTH_LABELS, TERRAIN_LABELS
 from shared.factors import is_precipitating, precip_type
+from shared.dates import sydney_today
 
 
 def format_overview(conditions: dict) -> dict:
@@ -25,6 +26,10 @@ def format_overview(conditions: dict) -> dict:
     conditions: DynamoDB data keyed by resort_key (as returned by _load_conditions).
     Returns the display-ready overview keyed by resort_key.
     """
+    # Read-path guard: never surface a day earlier than Sydney-today, even if the cache
+    # is briefly stale (e.g. just after midnight, before the next scheduled ingest rolls
+    # day 0 over). Keeps day 0 = today independent of when ingest last ran.
+    today = sydney_today()
     return {
         resort_key: {
             "name":       RESORTS[resort_key]["name"],
@@ -40,6 +45,7 @@ def format_overview(conditions: dict) -> dict:
                     "pm":          _format_window(day["pm"], RESORTS[resort_key]),
                 }
                 for day in data["forecast_windows"]
+                if day["date"] >= today
             ],
         }
         for resort_key, data in conditions.items()
@@ -57,15 +63,8 @@ def _format_window(w: dict, resort_static: dict) -> dict:
     precipitating = is_precipitating(w["precipitation_mm"], w["precipitation_probability"])
     ptype = precip_type(freezing, low, high) if precipitating else "dry"
 
-    prob = round(w["precipitation_probability"])
-    kmh  = round(w["wind_speed_kmh"])
+    kmh = round(w["wind_speed_kmh"])
     window = {
-        # Probability word is always shown (kept even on dry windows — "unlikely"
-        # reads less severe than nothing; frontend decides how to pair it with rain_snow).
-        "precip_probability": {
-            "pct":   prob,
-            "label": _precip_prob_label(prob),
-        },
         # `type` is the stable machine value ("dry"/"snow"/"mix"/"rain"); `rain_snow`
         # is the display string. Frontend branches on `type`, shows `rain_snow`.
         "type": ptype,
@@ -76,13 +75,28 @@ def _format_window(w: dict, resort_static: dict) -> dict:
         },
     }
 
-    # Snow amount + quality — only when some of the resort is getting snow.
+    # Precip probability only on precipitating windows. On a dry window the model
+    # forecasts negligible accumulation (<=1mm), so Open-Meteo's chance-of-*any*-precip
+    # figure would just contradict "no precipitation forecast" and confuse users.
+    if precipitating:
+        prob = round(w["precipitation_probability"])
+        window["precip_probability"] = {
+            "pct":   prob,
+            "label": _precip_prob_label(prob),
+        }
+
+    # Snow amount + quality — only when some of the resort is getting snow. On snow/mix
+    # windows temperature is surfaced *as* snow quality (temp + quality words); on dry/rain
+    # windows there's no snow to grade, so we show the plain temperature instead. Either
+    # way every window carries the mid-mountain temperature in some form.
     if ptype in ("snow", "mix"):
         window["snow_amount"]  = _snow_amount_field(w["snowfall_cm"], ptype, freezing)
         window["snow_quality"] = {
             "temp_c": round(w["temperature_c"]),
             "label":  _snow_quality_label(w["temperature_c"]),
         }
+    else:
+        window["temperature"] = _temperature_field(w["temperature_c"])
 
     # Sunniness — always shown on the overview. NOTE: this diverges from the scorer,
     # which drops sunniness when snowing so powder days aren't penalised for lack of
@@ -144,6 +158,21 @@ def _snow_quality_label(temp_c: float) -> str:
     return "wet & sticky quality snow"
 
 
+def _temperature_field(temp_c: float) -> dict:
+    """Plain mid-mountain temperature for dry/rain windows (no snow-quality framing).
+    Banded on the rounded value so the shown number always matches the word."""
+    c = round(temp_c)
+    if c < 0:
+        label = "cold"
+    elif c < 3:
+        label = "pleasant"
+    elif c <= 6:
+        label = "warm"
+    else:
+        label = "hot"
+    return {"temp_c": c, "label": label}
+
+
 def _wind_label(kmh: float) -> str:
     if kmh <= 30:
         return "fine winds"
@@ -163,18 +192,25 @@ def _sunniness_label(sunniness_pct: float) -> str:
 # --- Per-day ---
 
 def _recent_snow_field(cm: float) -> dict:
-    if cm < 10:
+    cm = round(cm)
+    if cm == 0:
+        label = "no recent snow"
+    elif cm < 10:
         label = "not much recent snow"
     elif cm <= 40:
         label = "a bit of recent snow"
     else:
         label = "a lot of fresh snow"
-    return {"cm": round(cm), "label": label}
+    return {"cm": cm, "label": label}
 
 
 # --- Per-resort (live snapshot + static character) ---
 
 def _lifts_field(open_count, total_count) -> dict:
+    # Open count can be missing from OnTheSnow (a data gap, e.g. Selwyn). Surface an
+    # unavailable marker (pct None) — the frontend renders "–". Not scored either.
+    if open_count is None or total_count is None:
+        return {"open": None, "total": total_count, "pct": None, "label": None}
     open_count, total_count = int(open_count), int(total_count)
     return {
         "open":  open_count,
@@ -186,7 +222,9 @@ def _lifts_field(open_count, total_count) -> dict:
     }
 
 
-def _base_depth_field(cm: float) -> dict:
+def _base_depth_field(cm) -> dict:
+    if cm is None:  # not reported in any elevation band — frontend renders "–"
+        return {"cm": None, "label": None}
     if cm <= 30:
         label = "thin base depth, patchy coverage"
     elif cm <= 60:

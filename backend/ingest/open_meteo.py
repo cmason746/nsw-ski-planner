@@ -9,6 +9,8 @@ from datetime import datetime, date, timedelta
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from shared.dates import sydney_today
+
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 FORECAST_DAYS = 10  # see ARCHITECTURE.md — forecast horizon decision
@@ -81,7 +83,10 @@ def extract_windows(hourly: dict) -> list[dict]:
     for i, dt in enumerate(times):
         by_date.setdefault(dt.strftime("%Y-%m-%d"), {})[dt.hour] = i
 
-    today = date.today().isoformat()
+    # Sydney-local today, not the Lambda's UTC date — the day keys above are Sydney
+    # local (Open-Meteo is queried with timezone=Australia/Sydney), so "today" must be
+    # too, or the first 10 hours of each Sydney day would keep yesterday as day 0.
+    today = sydney_today()
     forecast_dates = sorted(d for d in by_date if d >= today)
 
     return [

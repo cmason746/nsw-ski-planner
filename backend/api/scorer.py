@@ -82,16 +82,22 @@ def _weather_scores(w: dict, resort_static: dict) -> dict:
 
 
 def _resort_scores(resort_key: str, day_data: dict, resort_data: dict, ability: str) -> dict:
-    """Whole-day factor scores (identical across AM and PM)."""
-    return {
+    """Whole-day factor scores (identical across AM and PM). The two scraped factors
+    (lifts, base depth) are omitted when their data is missing — a missing key drops out
+    of _window_score's weighted average, i.e. the factor is N/A rather than scored 0."""
+    scores = {
         "recent_snow": score_recent_snow(day_data.get("recent_snow_cm", 0)),
-        "lifts":       score_lifts(resort_data["lifts_open"], resort_data["lifts_total"]),
-        "base_depth":  score_base_depth(resort_data["base_depth_cm"]),
         "ability":     ABILITY_SCORES[ability][resort_key],
         "size":        SIZE_SCORES[resort_key],
         "run_length":  LENGTH_SCORES[resort_key],
         "price":       PRICE_SCORES[resort_key],
     }
+    lifts_open, lifts_total = resort_data.get("lifts_open"), resort_data.get("lifts_total")
+    if lifts_open is not None and lifts_total:
+        scores["lifts"] = score_lifts(lifts_open, lifts_total)
+    if resort_data.get("base_depth_cm") is not None:
+        scores["base_depth"] = score_base_depth(resort_data["base_depth_cm"])
+    return scores
 
 
 def _window_score(weather: dict, resort: dict, weights: dict) -> float:
@@ -138,7 +144,9 @@ def apply_gates(candidates: list, conditions: dict, preferences: dict) -> list:
         if resort_key == "selwyn" and ability in ("intermediate", "advanced"):
             continue
         resort_data = conditions[resort_key]
-        if resort_data["lifts_total"] > 0 and resort_data["lifts_open"] == 0:
+        # Veto only a *known* zero-open resort (unskiable). Unknown open count (None) is
+        # not a veto — we can't call it unskiable, so it stays in with lifts N/A'd.
+        if resort_data.get("lifts_total") and resort_data.get("lifts_open") == 0:
             continue
         filtered.append(c)
     return filtered
