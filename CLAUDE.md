@@ -78,22 +78,32 @@ engine here once it exists._
 - [x] Commit backend to git — all of `backend/`, `template.yaml`, `samconfig.toml` pushed.
 - [x] Agree frontend design (flow already in ARCHITECTURE.md; visual layer now in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md))
 
-### Frontend (React + Vite — scaffold exists in `frontend/`, intentionally untracked for now)
+### Frontend (React + Vite — full app built in `frontend/`)
 
 _Design phase (do first, no real app code yet):_
 - [x] **Day-card headline decided** — `recent_snow` on its own top line; `rain_snow` at top of each AM/PM column; top-2 factors + rest expandable; **one factor order per day** ("snowiest wins": snow>mix>rain>dry), both columns share it; split-day snow gaps filled as "no new snow". Full spec in FRONTEND_DESIGN.md.
 - [x] Built throwaway **Overview mockup** — `mockups/overview.html` (self-contained, fake data shaped like `GET /conditions`). Agreed: Snowbound brand + tagline, white/blue palette, wide ~350px cards, AM/PM 2-col grid, `VALUE = descriptor` rows, elevation range in resort header, date-picker pill.
 - [x] Mock up the **Recommendation view** + the **preferences wizard** — `mockups/recommendation.html`. Agreed: one-question-at-a-time modal (auto-opens on entering the tab; every Q required, "don't mind" valid; beginners only asked ability+cost), persistent "Your picks" bar + ✎ Edit, ranked cards (rank + resort + day + top-3 weight-ordered factor chips + `NN/100` model score), expand → `why` prose **plus** full 8-factor grid.
-- [ ] Refine visual style — colours, typography, **icon set** (emoji are placeholders) — against the mockups
+- [x] **Visual style** — white/blue palette + card layout from the mockups; **icon set → Lucide** (coloured semantically; temperature colour-banded). Typography/spacing tuned live against the mockups. See FRONTEND_DESIGN.md → "Icons" / "Visual style".
 
-_Build phase (break down further once the mockups land):_
-- [ ] Plan component breakdown + folder structure; wire to live API (`GET /conditions`, `POST /recommend`); date picker (≤10 days); build + host on S3/CloudFront
+_Build phase (the mockups in `mockups/` are the visual reference — build is mostly mockup → React translation). Do roughly in order:_
+- [x] **Plan the component breakdown + folder structure** — agreed: CSS Modules, all shared state in `App.jsx` (props down, no Redux/router), both views stay mounted (`hidden`) so tab switches keep state. Full tree + build order in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md) → "Component architecture".
+- [x] **Check CORS on the HTTP API** — already configured (`CorsConfiguration`: origins `*`, methods GET/POST, all headers) **and verified live**: preflight `OPTIONS /recommend` → 204 with the right `access-control-*` headers; `GET /conditions` returns `access-control-allow-origin: *`. Gateway handles preflight + injects headers, so the Lambda adds none. _Later: tighten `AllowOrigins` to the CloudFront domain once hosted (comment already in `template.yaml`)._
+- [x] **App shell** — `App.jsx` (shared state) + `TopBar` (brand, tab pill, prefs button) + `tokens.css` + placeholder Overview/Recommendation views. Tab switch preserves state; Recommendation tab disabled until prefs set. `npm install` done; `npm run build` + `npm run lint` clean. Prefs button is a temporary stub (sets placeholder prefs to unlock the tab) until the wizard lands.
+- [x] **Overview view** wired to `GET /conditions` — three resort sections, AM/PM day-cards, date-range filter, expand. `overview/` (OverviewView → ResortSection → DayCard → FactorCell) + `lib/overviewFormat.js` + `api/client.js`.
+- [x] **Preferences wizard + Recommendation view** wired to `POST /recommend` — one-question-at-a-time modal (incl. a **date-range step**, pre-filled from the overview selection), "Your picks" bar + ✎ Edit, ranked result cards with real Haiku "why" prose. `recommend/` (RecommendationView, PreferencesWizard, PrefBar, ResultCard) + `lib/recommendFormat.js`.
+- [x] **Date picker** (≤10 days out) — shared `components/DatePicker.jsx` (contiguous-range calendar), used by both the Overview pill and the wizard step; single shared `dateRange` in `App.jsx`; default = today + next 6 days.
+- [x] **Icon pass** — Lucide (`lucide-react`), coloured semantically, temperature colour-banded. One swap-point: `lib/iconMap.js` + `lib/Icon.jsx`.
+- [x] **Commit the frontend to git** — done (commit `7e380a5`, pushed). `frontend/` is now tracked; `node_modules`/`dist` gitignored via Vite's `.gitignore`.
+- [ ] **Discuss AWS hosting options** (before building the hosting) — S3 static hosting vs S3 + CloudFront, custom domain / address name (Route 53, ACM cert), and how it all fits together. Talk through the options + trade-offs first, then decide.
+- [ ] **Build + host** on S3 + CloudFront.
+- [ ] **Tighten CORS for prod** — narrow `AllowOrigins` in `template.yaml` from `*` to the CloudFront (and any custom-domain) origin once hosting is set up. Comment already flags the spot.
 
-**⚠️ Pending backend redeploy (batched — `sam build && sam deploy` before wiring frontend):** the following `api/overview.py` changes are committed to code but NOT yet live on the deployed API:
-- `type` field per window (`dry`/`snow`/`mix`/`rain`) alongside `rain_snow`.
-- `elevations: {low, high}` per resort.
-- `sunniness` now emitted on **every** window (incl. snow/mix) — overview-only; scorer unchanged.
-- `_snow_quality_label`: added "quality" to each band; middle band `good` → `OK`.
+_State (as of 2026-08-16):_
+- Frontend **built and working end-to-end** against the live API — Overview + Recommendation + preferences wizard + date picker + Lucide icons. `npm run build`/`npm run lint` clean; runs via `npm run dev` (Vite, http://localhost:5173).
+- Backend serves everything needed and the Bedrock "why" prose is **live** (account subscribed to Claude Haiku 4.5 on Bedrock — required a valid payment instrument, now sorted).
+- **Frontend committed + pushed** (commit `7e380a5`); backend committed + deployed.
+- **All that's left is hosting:** discuss + build S3/CloudFront hosting, then tighten CORS (`AllowOrigins` `*` → the CloudFront/custom-domain origin). Nothing else outstanding.
 
 ## Deployment
 

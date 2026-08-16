@@ -54,7 +54,8 @@ src/
   App.jsx                    shell: top bar, tab switch, owns shared state
   lib/
     tokens.css               design tokens (colours, radius, shadow)
-    icons.js                 ICON map (emoji now → real set later; one swap point)
+    iconMap.js               ICONS name→[Lucide component, colour] + icon-name helpers
+    Icon.jsx                 <Icon name color size> — renders one Lucide icon
     overviewFormat.js        ORDER, dayType, factorParts, sunIcon (overview logic)
     recommendFormat.js       numUnit, shortRS, factValLab, chip (recommend logic)
     dates.js                 prettyDate + date-range helpers
@@ -297,18 +298,23 @@ Structure: date header → `recent_snow` line → **AM/PM 2-column grid** (see P
 their own content (a row's cards are **not** force-matched in height); expanding one grows
 just that card.
 
-**Icons:** emoji are **placeholders**. Real icon set is still to be chosen (see Open
-decisions). Current stand-ins: 🌨️ snow, 🌦️ mix, 🌧️ rain, ☀️/⛅/☁️ sun-by-%, 💨 wind,
-💧 precip, 🏔️ snow amount, ❄️ snow quality.
+**Icons: Lucide (`lucide-react`), coloured semantically.** The emoji placeholders were
+swapped for Lucide SVG icons — consistent across OS/browser (emoji render differently on
+Windows vs Mac) and cleaner. Defined once in `src/lib/iconMap.js` (`ICONS` name → [component,
+colour] + the `sunIconName`/`tempColor`/`factorIconName` helpers), rendered by
+`src/lib/Icon.jsx`. Colours are semantic and reuse the card's weather language: snow icons
+blue, mix purple, rain slate, sun amber, cloudy grey, wind teal, precip sky-blue; logistics
+factors get distinct hues (lifts green, base indigo, ability gold, size teal, runs violet,
+price green). **Temperature is colour-banded** to reinforce the reading — cold blue (<0°C),
+pleasant green (0–2°C), warm amber (3–6°C), hot red (>6°C).
 
 ## Open decisions
 
 Most design decisions are now **made** (day-card factor order, split-day fills, wizard
 flow, card layout, copy conventions, palette — all above). What's still genuinely open:
 
-- **Real icon set** — emoji are placeholders throughout both mockups. Choosing a proper
-  weather/factor icon set is the main outstanding visual task (`overview.py` deliberately
-  leaves icon choice to the frontend). This is the next design item before/with the build.
+- ~~**Real icon set**~~ — **done:** Lucide, coloured semantically (see "Icons" above). The
+  mockups still show emoji, but the built app uses Lucide.
 - **Final visual polish** — exact typography scale, spacing, density; to be tuned against
   the mockups while building the real React app (nothing here is locked).
 - **Runner-up contrast** — currently only woven into the recommendation `why` prose; may
