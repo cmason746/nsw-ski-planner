@@ -114,14 +114,48 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        # Open for now; tighten to the CloudFront domain once the frontend is hosted.
+        # Locked to the S3 website origin that serves the SPA (see SiteBucket).
         AllowOrigins:
-          - '*'
+          - !GetAtt SiteBucket.WebsiteURL
         AllowMethods:
           - GET
           - POST
         AllowHeaders:
           - '*'
+
+  # Static website hosting for the built React SPA (frontend/dist).
+  # Plain S3 website hosting (HTTP only, public-read) — no CloudFront. The bucket
+  # contents are uploaded out-of-band with `aws s3 sync` after each deploy; SAM
+  # only provisions the bucket, not its objects.
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: nsw-snowbound
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        # SPA fallback: unknown paths return index.html so client-side routing works.
+        ErrorDocument: index.html
+      # Public-read website hosting requires disabling the account/bucket public-access
+      # blocks and allowing a public bucket policy (below).
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Allow anonymous GETs on the site objects (required for website hosting).
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadForWebsite
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
 
 Outputs:
   ApiBaseUrl:
@@ -130,3 +164,9 @@ Outputs:
   ConditionsTableName:
     Description: DynamoDB conditions table name.
     Value: !Ref ConditionsTable
+  SiteBucketName:
+    Description: S3 bucket holding the built SPA — `aws s3 sync frontend/dist` here.
+    Value: !Ref SiteBucket
+  SiteUrl:
+    Description: Public S3 static-website URL for the frontend.
+    Value: !GetAtt SiteBucket.WebsiteURL

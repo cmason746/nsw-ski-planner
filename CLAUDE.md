@@ -16,6 +16,10 @@ their skiing ability and what matters most to them (e.g. fresh snow, open
 terrain, low wind, sunshine), and the app weights its recommendation
 accordingly.
 
+**Status: fully built and deployed end-to-end on AWS.** Backend + frontend are
+live; the only remaining spend is Bedrock tokens (cents). Live site:
+**http://nsw-snowbound.s3-website-ap-southeast-2.amazonaws.com**
+
 ## Scope
 
 - **NSW resorts only**, to stay relevant to Sydney-based users.
@@ -32,7 +36,13 @@ accordingly.
 - **Data store:** Amazon DynamoDB (caches latest conditions per resort).
 - **Scheduled ingest:** EventBridge schedule → Lambda, fetches weather on a
   timer and writes to DynamoDB.
-- **Hosting:** frontend on S3 + CloudFront.
+- **Hosting:** frontend on **plain S3 static website hosting** — bucket
+  `nsw-snowbound`, public-read, HTTP only. We deliberately chose plain S3 over
+  S3 + CloudFront: both are free at this scale, but for a personal project the
+  latency (CDN) and HTTPS benefits were judged overkill, and a public-read
+  bucket is an acceptable risk with no logins / no sensitive data. CloudFront
+  remains the "proper" production pattern if the app ever needs HTTPS, a custom
+  domain, or edge caching.
 - **Infrastructure as Code:** AWS SAM.
 - **Primary data source:** Open-Meteo (free, no API key) for snowfall, temp,
   wind, freezing level, cloud cover.
@@ -54,90 +64,122 @@ reasoning behind each choice.
 
 ## Key commands
 
-_TBD — add run / test / build commands here once the stack is set up._
+**Frontend (from `frontend/`):**
+
+```bash
+npm run dev      # local dev server — http://localhost:5173
+npm run build    # production build → frontend/dist/
+npm run lint     # oxlint
+```
+
+**Backend / infra (from repo root):** see "Deployment" below.
 
 ## Architecture & conventions
 
-_TBD — add directory layout and the location of the scoring/recommendation
-engine here once it exists._
+- **Backend** (`backend/`): two Lambdas sharing a layer.
+  - `shared/` — resort data (`resorts.py`) + factor classification/scoring
+    (`factors.py`, `scorer.py`); packaged as a SAM layer, reused by both Lambdas.
+  - `ingest/` — scheduled fetch (Open-Meteo via stdlib `urllib`, OnTheSnow via the
+    `__NEXT_DATA__` JSON blob) → writes the cache to DynamoDB.
+  - `api/` — `handler.py` routes `GET /conditions` (overview) and
+    `POST /recommend` (ranked cards); `overview.py` formats cached values into
+    band words + raw numbers; `explain.py` calls Bedrock (Haiku 4.5) for the
+    "why" prose with a templated fallback.
+  - **Zero pip deps** — stdlib + runtime boto3 only, so no Docker/container is
+    needed to build.
+- **Frontend** (`frontend/src/`): CSS Modules; all shared state lives in
+  `App.jsx` (props down, no Redux/router); both views stay mounted (`hidden`) so
+  tab switches preserve state. Layout: `overview/` + `recommend/` view trees,
+  shared `components/`, formatting in `lib/`, API calls in `api/client.js`.
+  Icons via Lucide (`lib/iconMap.js` + `lib/Icon.jsx`). Full component tree and
+  the visual spec are in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md).
 
 ## TODO (running list — update each session)
 
-- [x] Naming cleanup in `scorer.py`: renamed `resort` → `resort_static` (vs `resort_data` for cached conditions)
-- [x] Draw function connection diagrams for each backend file — see [BACKEND_DESIGN.md](BACKEND_DESIGN.md)
-- [x] Write `api/handler.py` — routing (GET /conditions, POST /recommend) + `_load_conditions()`; finalise function signatures / variable names first
-- [x] Recommendation ranking → **best resort per day** (one card per day, top 3 days), replacing top-3 (resort,day) combos. `scorer.py` now builds an 8-factor "why" package (top-4 by weight + top-4 by score, static factors eligible) + a 2-factor runner-up contrast (prefers band-differing factors), all described with the overview band words.
-- [x] Step 2 — `api/explain.py` `generate_why()`: one Bedrock call (Claude Haiku 4.5, model id `anthropic.claude-haiku-4-5-20251001-v1:0`) via **boto3 `bedrock-runtime`** (not the Anthropic SDK — so the API Lambda has zero pip deps and needs no Docker to build) rephrases each card's facts into a small paragraph, strictly guardrailed; templated fallback; wired into `POST /recommend`. **Live Bedrock call still untested.**
-- [x] Implement `format_overview()` in `api/overview.py` — raw cached values → band words + raw numbers (frontend picks icons + lays out as aligned dot points). Precip gate/rain-snow split moved to `shared/factors.py` (`is_precipitating`, `precip_type`) so overview and scorer classify identically.
-- [x] Implement `extract_windows()` in `open_meteo.py`
-- [x] Implement OnTheSnow scraper (`onthesnow.py`) — parses the `__NEXT_DATA__` JSON blob (Next.js), not the rendered HTML; no bs4 needed
-- [x] Write `template.yaml` (SAM — DynamoDB, shared layer, 2 Lambdas, HTTP API, EventBridge schedule) + `samconfig.toml`
-- [x] Deploy SAM skeleton to AWS — **stack is live in ap-southeast-2** (see "Deployment" below)
-- [x] Drop the only third-party dep: `ingest` now uses stdlib `urllib` instead of `requests`, so the **whole backend has zero pip deps** (stdlib + runtime boto3) — no Docker/container needed to build
-- [x] **Test the deployed backend end-to-end** — fixed float→Decimal bug in ingest, fixed Bedrock inference profile (`au.anthropic.claude-haiku-4-5-20251001-v1:0`). Both endpoints live and returning real data + real Haiku prose.
-- [x] Commit backend to git — all of `backend/`, `template.yaml`, `samconfig.toml` pushed.
-- [x] Agree frontend design (flow already in ARCHITECTURE.md; visual layer now in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md))
+The app is complete and deployed. Nothing outstanding. Historical build items
+are in git history; the frontend build breakdown lives in
+[FRONTEND_DESIGN.md](FRONTEND_DESIGN.md).
 
-### Frontend (React + Vite — full app built in `frontend/`)
+Possible future enhancements (none planned):
 
-_Design phase (do first, no real app code yet):_
-- [x] **Day-card headline decided** — `recent_snow` on its own top line; `rain_snow` at top of each AM/PM column; top-2 factors + rest expandable; **one factor order per day** ("snowiest wins": snow>mix>rain>dry), both columns share it; split-day snow gaps filled as "no new snow". Full spec in FRONTEND_DESIGN.md.
-- [x] Built throwaway **Overview mockup** — `mockups/overview.html` (self-contained, fake data shaped like `GET /conditions`). Agreed: Snowbound brand + tagline, white/blue palette, wide ~350px cards, AM/PM 2-col grid, `VALUE = descriptor` rows, elevation range in resort header, date-picker pill.
-- [x] Mock up the **Recommendation view** + the **preferences wizard** — `mockups/recommendation.html`. Agreed: one-question-at-a-time modal (auto-opens on entering the tab; every Q required, "don't mind" valid; beginners only asked ability+cost), persistent "Your picks" bar + ✎ Edit, ranked cards (rank + resort + day + top-3 weight-ordered factor chips + `NN/100` model score), expand → `why` prose **plus** full 8-factor grid.
-- [x] **Visual style** — white/blue palette + card layout from the mockups; **icon set → Lucide** (coloured semantically; temperature colour-banded). Typography/spacing tuned live against the mockups. See FRONTEND_DESIGN.md → "Icons" / "Visual style".
-
-_Build phase (the mockups in `mockups/` are the visual reference — build is mostly mockup → React translation). Do roughly in order:_
-- [x] **Plan the component breakdown + folder structure** — agreed: CSS Modules, all shared state in `App.jsx` (props down, no Redux/router), both views stay mounted (`hidden`) so tab switches keep state. Full tree + build order in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md) → "Component architecture".
-- [x] **Check CORS on the HTTP API** — already configured (`CorsConfiguration`: origins `*`, methods GET/POST, all headers) **and verified live**: preflight `OPTIONS /recommend` → 204 with the right `access-control-*` headers; `GET /conditions` returns `access-control-allow-origin: *`. Gateway handles preflight + injects headers, so the Lambda adds none. _Later: tighten `AllowOrigins` to the CloudFront domain once hosted (comment already in `template.yaml`)._
-- [x] **App shell** — `App.jsx` (shared state) + `TopBar` (brand, tab pill, prefs button) + `tokens.css` + placeholder Overview/Recommendation views. Tab switch preserves state; Recommendation tab disabled until prefs set. `npm install` done; `npm run build` + `npm run lint` clean. Prefs button is a temporary stub (sets placeholder prefs to unlock the tab) until the wizard lands.
-- [x] **Overview view** wired to `GET /conditions` — three resort sections, AM/PM day-cards, date-range filter, expand. `overview/` (OverviewView → ResortSection → DayCard → FactorCell) + `lib/overviewFormat.js` + `api/client.js`.
-- [x] **Preferences wizard + Recommendation view** wired to `POST /recommend` — one-question-at-a-time modal (incl. a **date-range step**, pre-filled from the overview selection), "Your picks" bar + ✎ Edit, ranked result cards with real Haiku "why" prose. `recommend/` (RecommendationView, PreferencesWizard, PrefBar, ResultCard) + `lib/recommendFormat.js`.
-- [x] **Date picker** (≤10 days out) — shared `components/DatePicker.jsx` (contiguous-range calendar), used by both the Overview pill and the wizard step; single shared `dateRange` in `App.jsx`; default = today + next 6 days.
-- [x] **Icon pass** — Lucide (`lucide-react`), coloured semantically, temperature colour-banded. One swap-point: `lib/iconMap.js` + `lib/Icon.jsx`.
-- [x] **Commit the frontend to git** — done (commit `7e380a5`, pushed). `frontend/` is now tracked; `node_modules`/`dist` gitignored via Vite's `.gitignore`.
-- [ ] **Discuss AWS hosting options** (before building the hosting) — S3 static hosting vs S3 + CloudFront, custom domain / address name (Route 53, ACM cert), and how it all fits together. Talk through the options + trade-offs first, then decide.
-- [ ] **Build + host** on S3 + CloudFront.
-- [ ] **Tighten CORS for prod** — narrow `AllowOrigins` in `template.yaml` from `*` to the CloudFront (and any custom-domain) origin once hosting is set up. Comment already flags the spot.
+- [ ] Move to S3 + CloudFront if HTTPS / a custom domain / edge caching is ever
+      wanted (a custom domain would cost ~$12/yr to register — deliberately
+      skipped for now).
+- [ ] Automate the frontend deploy (build → `s3 sync`) rather than running it by
+      hand.
 
 _State (as of 2026-08-16):_
-- Frontend **built and working end-to-end** against the live API — Overview + Recommendation + preferences wizard + date picker + Lucide icons. `npm run build`/`npm run lint` clean; runs via `npm run dev` (Vite, http://localhost:5173).
-- Backend serves everything needed and the Bedrock "why" prose is **live** (account subscribed to Claude Haiku 4.5 on Bedrock — required a valid payment instrument, now sorted).
-- **Frontend committed + pushed** (commit `7e380a5`); backend committed + deployed.
-- **All that's left is hosting:** discuss + build S3/CloudFront hosting, then tighten CORS (`AllowOrigins` `*` → the CloudFront/custom-domain origin). Nothing else outstanding.
+- **Whole app live on AWS.** Backend (Lambdas, DynamoDB, HTTP API, EventBridge
+  ingest, Bedrock "why" prose) deployed; frontend built and hosted on the
+  `nsw-snowbound` S3 website bucket, serving the SPA over HTTP.
+- Overview + Recommendation + preferences wizard + date picker + Lucide icons
+  all working end-to-end against the live API. Bedrock Haiku 4.5 prose is live.
+- CORS on the HTTP API is **locked to the S3 website origin**
+  (`AllowOrigins: !GetAtt SiteBucket.WebsiteURL`), no longer `*`.
+- Frontend committed + pushed (commit `7e380a5`); the S3 hosting resources in
+  `template.yaml` are the latest uncommitted change (commit when ready).
 
 ## Deployment
 
-Live serverless backend, deployed with AWS SAM.
+Live serverless app, deployed with AWS SAM.
 
 - **Region:** `ap-southeast-2` (Sydney) — everything, incl. the Bedrock call (Haiku 4.5 is available there).
 - **Stack:** `nsw-ski-planner` · **AWS CLI profile:** `ski-planner` (personal account) · **region:** `ap-southeast-2`.
+- **Live site:** `http://nsw-snowbound.s3-website-ap-southeast-2.amazonaws.com` (plain S3 website hosting).
 - **API base URL:** `https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com` → `GET /conditions`, `POST /recommend`.
 - **DynamoDB table:** `nsw-ski-planner-ConditionsTable-8ER2M7M89UK3`.
-- **Build/deploy:** from repo root, `sam build` then `sam deploy` (no `--use-container`; needs local `python3.12`, installed via brew). `samconfig.toml` pins profile/region/model-id.
-  - **Always deploy non-interactively.** `samconfig.toml` sets `confirm_changeset = false`; if ever deploying by hand or from a fresh config, pass **`--no-confirm-changeset`** — otherwise `sam deploy` prints the changeset and **hangs waiting for a y/N** that can't be answered here.
-- **Cost:** effectively free — Lambda/DynamoDB/EventBridge/HTTP API all free-tier; only Bedrock tokens cost (cents).
+- **S3 site bucket:** `nsw-snowbound`.
 
-## Next — testing the deployed backend
+### Deploy the backend / infra
 
-1. **Populate the cache:** invoke the ingest Lambda by hand (schedule is every 3h; until it runs, `GET /conditions` returns 503).
-2. **`GET /conditions`** → overview JSON.
-3. **`POST /recommend`** (body keys: `ability, cost_matters, bigger_resort, longer_runs, snow_pref, selected_dates`) → ranked cards + Haiku "why" prose from Bedrock.
-4. Then → **frontend**.
+From repo root, `sam build` then `sam deploy` (no `--use-container`; needs local
+`python3.12`, installed via brew). `samconfig.toml` pins profile/region/model-id.
+
+- **Always deploy non-interactively.** `samconfig.toml` sets
+  `confirm_changeset = false`; if ever deploying by hand or from a fresh config,
+  pass **`--no-confirm-changeset`** — otherwise `sam deploy` prints the changeset
+  and **hangs waiting for a y/N** that can't be answered here.
+
+### Deploy the frontend
+
+SAM only provisions the bucket — the built site files are uploaded out-of-band.
+After any frontend change:
+
+```bash
+# 1. Build the SPA
+cd frontend && npm run build && cd ..
+
+# 2. (only if template.yaml changed) update the infra
+sam build && sam deploy
+
+# 3. Upload the build to the site bucket
+aws s3 sync frontend/dist s3://nsw-snowbound --delete \
+  --profile ski-planner --region ap-southeast-2
+```
+
+Then the new build is live at the site URL immediately (no CDN cache to
+invalidate — that's a plain-S3 upside).
+
+- **Cost:** effectively free — Lambda/DynamoDB/EventBridge/HTTP API/S3 all
+  free-tier; only Bedrock tokens cost (cents).
+
+### Testing the deployed backend directly
 
 Turnkey commands (profile `ski-planner`, region `ap-southeast-2`):
 
 ```bash
-# 1. Invoke ingest to populate DynamoDB (prints tailed logs base64 → decode)
+# Invoke ingest by hand to populate DynamoDB (schedule runs every 3h; until it
+# has run, GET /conditions returns 503)
 FN=$(aws cloudformation describe-stack-resource --stack-name nsw-ski-planner \
   --logical-resource-id IngestFunction --query 'StackResourceDetail.PhysicalResourceId' \
   --output text --profile ski-planner --region ap-southeast-2)
 aws lambda invoke --function-name "$FN" --log-type Tail \
   --profile ski-planner --region ap-southeast-2 /tmp/ingest.json
 
-# 2. Overview
+# Overview
 curl -s https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com/conditions | python3 -m json.tool
 
-# 3. Recommendation — set selected_dates to dates seen in the overview
+# Recommendation — set selected_dates to dates seen in the overview
 curl -s -X POST https://ayyfk7jzlb.execute-api.ap-southeast-2.amazonaws.com/recommend \
   -H 'Content-Type: application/json' \
   -d '{"ability":"beginner","cost_matters":false,"snow_pref":"snowy","selected_dates":["YYYY-MM-DD","YYYY-MM-DD"]}' \
