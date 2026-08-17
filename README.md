@@ -45,60 +45,86 @@ The recommendation is **preference-aware**: the same conditions produce a
 different answer for a budget-conscious beginner than for an advanced skier
 chasing fresh snow.
 
-## Why this project
+## It interprets the conditions, not just displays them
 
-I built Snowbound as a from-scratch, end-to-end product to demonstrate the
-things a **Forward Deployed / Solutions Engineer** actually does day to day:
+The Overview doesn't just show raw numbers — it tells you what they *mean* for
+skiing. Most people don't know what wind speed puts the lifts on hold, or what
+temperature makes for good-quality snow. So every figure comes with a
+plain-language read alongside it:
 
-- **Take a fuzzy real-world problem and ship a working product** — frontend,
-  backend, data pipeline, cloud infrastructure, and an LLM integration, deployed
-  and live.
-- **Make deliberate architecture decisions and be able to defend them** — every
-  choice below has a "why," and an honest "here's the tradeoff I accepted."
-- **Integrate an LLM responsibly** — using a model where it adds value
-  (readable prose) while engineering hard guardrails against the thing everyone
-  worries about (hallucination).
-- **Communicate technical reasoning clearly** — the whole repo is documented as
-  if handing it to a customer's engineering team.
+- **Wind** — *52 km/h* is labelled *"very windy, lifts likely to be on hold"*,
+  not just left as a number.
+- **Snow quality** — a temperature of *−4 °C* is called *"dry & light quality
+  snow"*; near-freezing gets flagged as wet and sticky.
+- **Freezing level** — translated into *"snow across the whole resort"* vs
+  *"snow up high, rain below ~1550 m"*.
+
+The raw figure is always there too — the interpretation sits next to it, so a
+newer skier gets a straight answer and learns the reasoning as they go.
+
+## Why I built it
+
+I love the snow, and every winter I go through the same ritual: half a dozen
+browser tabs across the three resorts, trying to work out where conditions will
+actually be best. Nothing pulls it together in one place, and nothing turns the
+raw numbers into a straight answer.
+
+I also have friends newer to skiing who always ask me where and when they should
+go. Snowbound is the answer I'd give them — it aggregates the data for all three
+NSW resorts and turns it into a clear, beginner-friendly recommendation with the
+reasoning spelled out.
 
 ---
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| **Frontend** | React + Vite (static SPA) | Component model + a build that drops straight onto S3. CSS Modules for scoped styling, no framework sprawl. |
+| **Backend** | Python on AWS Lambda | Right tool for the fetch + scoring logic; **zero pip dependencies** (stdlib + runtime boto3), so no containers to build. |
+| **API** | API Gateway (HTTP API) | Thin, cheap HTTP front door for the Lambdas. |
+| **Data store** | DynamoDB | Simple key-value cache of the latest conditions per resort. |
+| **Scheduled ingest** | EventBridge → Lambda | Timer-driven fetch, decoupled from the request path. |
+| **LLM** | Amazon Bedrock (Claude Haiku 4.5) | Grounded prose generation with a templated fallback. |
+| **Hosting** | S3 static website hosting | Plain S3, HTTP-only — see the tradeoff below. |
+| **IaC** | AWS SAM | Purpose-built for this serverless shape; whole stack is reproducible from `template.yaml`. |
 
 ## Architecture
 
 Serverless throughout, on AWS, deployed as infrastructure-as-code.
 
 ```
-                         ┌──────────────────────────────┐
-                         │  Browser — React + Vite SPA   │
-                         │  (Conditions ⇄ Recommendation)│
-                         └───────────────┬───────────────┘
-                                         │  HTTPS (JSON)
-                    S3 static hosting    │
-        ┌────────────────────────────────┼────────────────────────────┐
-        │                                 ▼                            │
-        │                    ┌────────────────────────┐               │
-        │                    │  API Gateway (HTTP API) │               │
-        │                    └────────────┬───────────┘               │
-        │                                 ▼                            │
-        │                    ┌────────────────────────┐               │
-        │                    │   API Lambda (Python)   │               │
-        │                    │  scoring model + "why"  │──► Bedrock    │
-        │                    └────────────┬───────────┘   (Haiku 4.5) │
-        │                                 ▼                            │
-        │                    ┌────────────────────────┐               │
-        │                    │        DynamoDB         │  latest cached│
-        │                    │   (conditions cache)    │  conditions   │
-        │                    └────────────▲───────────┘               │
-        │                                 │                            │
-        │       EventBridge schedule ─► Ingest Lambda (Python)         │
-        │       (every 3h)              fetches + derives conditions   │
-        └─────────────────────────────────────────────────────────────┘
-                                         │
-                          ┌──────────────┴───────────────┐
-                          ▼                               ▼
-                   Open-Meteo API                   OnTheSnow
-              (snowfall, temp, wind,           (open-lift %, base depth
-               freezing level, cloud)           — scraped snapshot)
+                       ┌────────────────────────────────┐
+                       │   Browser — React + Vite SPA   │
+                       │ (Conditions ⇄ Recommendation)  │
+                       └────────────────┬───────────────┘
+     S3 static hosting                  │  HTTPS (JSON)
+    ┌───────────────────────────────────┼───────────────────────────────────┐
+    │                                   ▼                                   │
+    │                      ┌────────────────────────┐                       │
+    │                      │ API Gateway (HTTP API) │                       │
+    │                      └────────────┬───────────┘                       │
+    │                                   ▼                                   │
+    │                      ┌────────────────────────┐                       │
+    │                      │  API Lambda (Python)   ┤──► Bedrock            │
+    │                      │ scoring model + "why"  │    (Haiku 4.5)        │
+    │                      └────────────┬───────────┘                       │
+    │                                   ▼                                   │
+    │                      ┌────────────────────────┐                       │
+    │                      │        DynamoDB        │ latest cached         │
+    │                      │   (conditions cache)   │ conditions            │
+    │                      └────────────────────────┘                       │
+    │                                   ▲                                   │
+    │                                   │                                   │
+    │  EventBridge schedule ────► Ingest Lambda (Python)                    │
+    │                             fetches + derives conditions              │
+    └───────────────────────────────────┬───────────────────────────────────┘
+                                        │
+                      ┌─────────────────┴─────────────────┐
+                      ▼                                   ▼
+              Open-Meteo API                        OnTheSnow
+         (snowfall, temp, wind,                 (open-lift %, base depth
+          freezing level, cloud)                 — scraped snapshot)
 ```
 
 **The key design decision: split ingest from serving.** A scheduled Lambda
@@ -108,7 +134,7 @@ getting rate-limited by) the upstream data sources on every page load, and
 cleanly decouples "getting data" from "serving answers." It's the same
 read-through-cache pattern you'd reach for at scale, sized down to a personal app.
 
-## The interesting part: grounded LLM explanations
+## Grounded LLM explanations
 
 The explanation prose is generated by **Claude Haiku 4.5 via Amazon Bedrock** —
 but with a strict separation of concerns designed to make hallucination
@@ -127,9 +153,6 @@ structurally impossible:
 The result reads naturally but is provably faithful to the computed scores —
 every fact in the prose was pre-computed by code. Haiku is deliberately
 right-sized: constrained rephrasing doesn't need a frontier model.
-
-> This is the pattern I'd bring to a customer worried about putting an LLM in
-> front of users: **let the LLM do the language, never the truth.**
 
 ## The scoring model
 
@@ -153,40 +176,22 @@ Full factor-by-factor spec, data sources, and scoring curves are in
 [FACTORS.md](FACTORS.md); the model and its design decisions are in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
----
-
-## Tech stack
-
-| Layer | Choice | Why |
-|---|---|---|
-| **Frontend** | React + Vite (static SPA) | Component model + a build that drops straight onto S3. CSS Modules for scoped styling, no framework sprawl. |
-| **Backend** | Python on AWS Lambda | Right tool for the fetch + scoring logic; **zero pip dependencies** (stdlib + runtime boto3), so no containers to build. |
-| **API** | API Gateway (HTTP API) | Thin, cheap HTTP front door for the Lambdas. |
-| **Data store** | DynamoDB | Simple key-value cache of the latest conditions per resort. |
-| **Scheduled ingest** | EventBridge → Lambda | Timer-driven fetch, decoupled from the request path. |
-| **LLM** | Amazon Bedrock (Claude Haiku 4.5) | Grounded prose generation with a templated fallback. |
-| **Hosting** | S3 static website hosting | See tradeoff below. |
-| **IaC** | AWS SAM | Purpose-built for this serverless shape; whole stack is reproducible from `template.yaml`. |
-
 ## Engineering decisions & tradeoffs
 
-Being able to articulate *why*, and what I gave up, is the point of this project:
+A few of the choices worth calling out, and what I traded off:
 
 - **Serverless, not a server.** No instance to patch or scale; the app costs
   effectively nothing at rest (only Bedrock tokens cost anything — cents).
   Tradeoff: cold starts, which are irrelevant for this traffic profile.
-- **Plain S3 hosting over S3 + CloudFront.** Both are free at this scale. I
-  chose plain S3 and consciously accepted **HTTP-only, no CDN** — for a personal
-  project with no logins and no sensitive data, the HTTPS/edge-caching benefits
-  were overkill. CloudFront is the documented upgrade path the moment the app
-  needs HTTPS, a custom domain, or global latency.
+- **Plain S3 over S3 + CloudFront.** Both are free here, so I skipped the CDN —
+  HTTP-only is fine for a project with no logins or sensitive data. CloudFront is
+  the upgrade path if it ever needs HTTPS or a custom domain.
 - **Read-through cache.** Upstream data is fetched on a schedule and cached, not
   fetched per request — protects fragile scraped sources and keeps latency low.
 - **Scraping accepted as fragile.** Australian resorts have no clean lift-status
   API, so open-lift % and base depth are scraped from OnTheSnow's embedded JSON.
   I treat this as a known-fragile dependency, isolated to the ingest Lambda, for
   a deliberately short-lived app.
-- **LLM for language, code for truth** — the grounded-explanation design above.
 
 ---
 
@@ -224,14 +229,10 @@ This repo is documented as if handing it to another engineer:
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the app works, data flow, the
   scoring model, and the reasoning behind each choice.
+- **[BACKEND_DESIGN.md](BACKEND_DESIGN.md)** — how the backend code fits
+  together: which function calls which, and why.
 - **[FACTORS.md](FACTORS.md)** — every decision factor: what it is, why it
   matters, its data source, and how it scores.
 - **[FRONTEND_DESIGN.md](FRONTEND_DESIGN.md)** — the frontend component tree and
   visual spec.
 - **[RESORT_DATA.md](RESORT_DATA.md)** — the static per-resort data.
-
----
-
-*Built as a portfolio project to demonstrate end-to-end product delivery on AWS:
-turning a real problem into a live, serverless, LLM-assisted application — and
-being able to explain every decision in it.*
