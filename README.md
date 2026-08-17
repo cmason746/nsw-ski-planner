@@ -76,19 +76,6 @@ reasoning spelled out.
 
 ---
 
-## Tech stack
-
-| Layer | Choice | Why |
-|---|---|---|
-| **Frontend** | React + Vite (static SPA) | Component model + a build that drops straight onto S3. CSS Modules for scoped styling, no framework sprawl. |
-| **Backend** | Python on AWS Lambda | Right tool for the fetch + scoring logic; **zero pip dependencies** (stdlib + runtime boto3), so no containers to build. |
-| **API** | API Gateway (HTTP API) | Thin, cheap HTTP front door for the Lambdas. |
-| **Data store** | DynamoDB | Simple key-value cache of the latest conditions per resort. |
-| **Scheduled ingest** | EventBridge → Lambda | Timer-driven fetch, decoupled from the request path. |
-| **LLM** | Amazon Bedrock (Claude Haiku 4.5) | Grounded prose generation with a templated fallback. |
-| **Hosting** | S3 static website hosting | Plain S3, HTTP-only — see the tradeoff below. |
-| **IaC** | AWS SAM | Purpose-built for this serverless shape; whole stack is reproducible from `template.yaml`. |
-
 ## Architecture
 
 Serverless throughout, on AWS, deployed as infrastructure-as-code.
@@ -133,6 +120,19 @@ only ever reads the cache. This keeps user requests fast, avoids hammering (and
 getting rate-limited by) the upstream data sources on every page load, and
 cleanly decouples "getting data" from "serving answers." It's the same
 read-through-cache pattern you'd reach for at scale, sized down to a personal app.
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| **Frontend** | React + Vite (static SPA) | Component model + a build that drops straight onto S3. CSS Modules for scoped styling, no framework sprawl. |
+| **Backend** | Python on AWS Lambda | Right tool for the fetch + scoring logic; **zero pip dependencies** (stdlib + runtime boto3), so no containers to build. |
+| **API** | API Gateway (HTTP API) | Thin, cheap HTTP front door for the Lambdas. |
+| **Data store** | DynamoDB | Simple key-value cache of the latest conditions per resort. |
+| **Scheduled ingest** | EventBridge → Lambda | Timer-driven fetch, decoupled from the request path. |
+| **LLM** | Amazon Bedrock (Claude Haiku 4.5) | Grounded prose generation with a templated fallback. |
+| **Hosting** | S3 static website hosting | Plain S3, HTTP-only — see the tradeoff below. |
+| **IaC** | AWS SAM | Purpose-built for this serverless shape; whole stack is reproducible from `template.yaml`. |
 
 ## Grounded LLM explanations
 
